@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -20,17 +21,45 @@ func main() {
 	r.HandleFunc("/etv", doCheck(etv)) //enable TV
 	r.HandleFunc("/blockYT", doCheck(blockYT))
 	r.HandleFunc("/enableYT", doCheck(enableYT))
-	r.HandleFunc("/statusYT", statusYT)
-	log.Fatal(http.ListenAndServe(":9620", handlers.CombinedLoggingHandler(os.Stdout, r)))
+	r.HandleFunc("/statusYT", acao(statusYT))
+	r.HandleFunc("/blockFB", doCheck(blockFB))
+	r.HandleFunc("/enableFB", doCheck(enableFB))
+	r.HandleFunc("/statusFB", acao(statusFB))
+	log.Fatal(http.ListenAndServe(":9620",
+		handlers.CombinedLoggingHandler(os.Stdout, r)))
+}
+
+// this global means i should extract to a server type soon.
+var namedMu sync.Mutex
+
+func acao(f http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Access-Control-Allow-Origin", "http://delays.powerpuff")
+		f(w, r)
+	})
+}
+
+func lockNamedFile(f http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		namedMu.Lock()
+		defer namedMu.Unlock()
+		f(w, r)
+	})
+}
+
+func emptyHandlerFunc() http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 }
 
 func doCheck(f http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+			http.Error(w, http.StatusText(http.StatusMethodNotAllowed),
+				http.StatusMethodNotAllowed)
 			return
 		}
-		w.Header().Add("Access-Control-Allow-Origin", "http://delays.powerpuff")
+		//w.Header().Add("Access-Control-Allow-Origin", "http://delays.powerpuff")
+		acao(emptyHandlerFunc())(w, r)
 		b := make(map[string]string)
 		err := json.NewDecoder(r.Body).Decode(&b)
 		if err != nil {
@@ -46,13 +75,15 @@ func doCheck(f http.HandlerFunc) http.HandlerFunc {
 }
 
 func etv(w http.ResponseWriter, r *http.Request) {
-	out, err := exec.Command("iptables", "-D", "INPUT", "-s", "vizio.powerpuff", "-j", "DROP").CombinedOutput()
+	out, err := exec.Command("iptables", "-D", "INPUT", "-s", "vizio.powerpuff",
+		"-j", "DROP").CombinedOutput()
 	if err != nil {
 		log.Print(err, string(out))
 		http.Error(w, "could not run iptables for TV", 503)
 		return
 	}
-	out, err = exec.Command("iptables", "-D", "INPUT", "-s", "kodi.powerpuff", "-j", "DROP").CombinedOutput()
+	out, err = exec.Command("iptables", "-D", "INPUT", "-s", "kodi.powerpuff",
+		"-j", "DROP").CombinedOutput()
 	if err != nil {
 		log.Print(err, string(out))
 		http.Error(w, "could not run iptables for kodi", 503)
@@ -71,7 +102,8 @@ func etv(w http.ResponseWriter, r *http.Request) {
 func blockIn(d time.Duration, hosts ...string) {
 	time.Sleep(d)
 	for _, host := range hosts {
-		out, err := exec.Command("iptables", "-I", "INPUT", "9", "-s", host, "-j", "DROP").CombinedOutput()
+		out, err := exec.Command("iptables", "-I", "INPUT", "9", "-s", host,
+			"-j", "DROP").CombinedOutput()
 		if err != nil {
 			log.Print(err, string(out))
 			return
@@ -82,34 +114,7 @@ func blockIn(d time.Duration, hosts ...string) {
 const namedFile = "/etc/bind/named.conf.local"
 
 func statusYT(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Access-Control-Allow-Origin", "http://delays.powerpuff")
-	b, err := ioutil.ReadFile(namedFile)
-	if err != nil {
-		return
-	}
-	lines := bytes.Split(b, []byte("\n"))
-	on := false
-	var status string
-	for _, line := range lines {
-		if on && !bytes.HasPrefix(line, []byte("//")) {
-			status = "YouTube is currently disabled"
-			break
-		}
-		if on && bytes.HasPrefix(line, []byte("//")) {
-			status = "YouTube is currently enabled"
-			break
-		}
-		if bytes.Contains(line, []byte("YouTube")) {
-			on = true
-		}
-	}
-	respj := make(map[string]string)
-	respj["status"] = status
-	err = json.NewEncoder(w).Encode(respj)
-	if err != nil {
-		log.Print(err)
-		return
-	}
+	statusX(w, r, "YouTube")
 }
 
 func commentFileBetween(filename, start, stop string, uncomment bool) error {
@@ -127,7 +132,7 @@ func commentFileBetween(filename, start, stop string, uncomment bool) error {
 		if on && !bytes.HasPrefix(line, []byte("//")) && !uncomment {
 			io.WriteString(f, "//")
 		}
-		if bytes.Contains(line, []byte("End")) {
+		if bytes.Contains(line, []byte(stop)) {
 			on = false
 		}
 		if on && bytes.HasPrefix(line, []byte("//")) && uncomment {
@@ -135,7 +140,7 @@ func commentFileBetween(filename, start, stop string, uncomment bool) error {
 		}
 		f.Write(line)
 		io.WriteString(f, "\n")
-		if bytes.Contains(line, []byte("YouTube")) {
+		if bytes.Contains(line, []byte(start)) {
 			on = true
 		}
 	}
@@ -143,7 +148,19 @@ func commentFileBetween(filename, start, stop string, uncomment bool) error {
 }
 
 func blockYT(w http.ResponseWriter, r *http.Request) {
-	err := commentFileBetween(namedFile, "YouTube", "End", false)
+	blockX(w, r, "YouTube")
+}
+
+func blockFB(w http.ResponseWriter, r *http.Request) {
+	blockX(w, r, "Facebook")
+}
+
+func blockX(w http.ResponseWriter, r *http.Request, key string) {
+	editX(w, r, key, true, "Blocked!")
+}
+
+func editX(w http.ResponseWriter, r *http.Request, key string, uncomment bool, message string) {
+	err := commentFileBetween(namedFile, key, "End", uncomment)
 	if err != nil {
 		log.Print(err)
 		http.Error(w, "could not edit config file", 503)
@@ -151,7 +168,7 @@ func blockYT(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respj := make(map[string]string)
-	respj["message"] = "YT BLOCKED!"
+	respj["message"] = key + " " + message
 	err = json.NewEncoder(w).Encode(respj)
 	if err != nil {
 		log.Print(err)
@@ -166,24 +183,48 @@ func blockYT(w http.ResponseWriter, r *http.Request) {
 }
 
 func enableYT(w http.ResponseWriter, r *http.Request) {
-	err := commentFileBetween(namedFile, "YouTube", "End", true)
+	enableX(w, r, "YouTube")
+}
+
+func enableFB(w http.ResponseWriter, r *http.Request) {
+	enableX(w, r, "Facebook")
+}
+
+func enableX(w http.ResponseWriter, r *http.Request, key string) {
+	editX(w, r, key, false, "Enabled!")
+}
+
+func statusFB(w http.ResponseWriter, r *http.Request) {
+	//w.Header().Add("Access-Control-Allow-Origin", "http://delays.powerpuff")
+	statusX(w, r, "Facebook")
+}
+
+func statusX(w http.ResponseWriter, r *http.Request, key string) {
+	b, err := ioutil.ReadFile(namedFile)
 	if err != nil {
-		log.Print(err)
-		http.Error(w, "could not edit config file", 503)
 		return
 	}
-
+	lines := bytes.Split(b, []byte("\n"))
+	on := false
+	var status string
+	for _, line := range lines {
+		if on && !bytes.HasPrefix(line, []byte("//")) {
+			status = key + " is currently disabled"
+			break
+		}
+		if on && bytes.HasPrefix(line, []byte("//")) {
+			status = key + " is currently enabled"
+			break
+		}
+		if bytes.Contains(line, []byte(key)) {
+			on = true
+		}
+	}
 	respj := make(map[string]string)
-	respj["message"] = "YT Enabled!"
+	respj["status"] = status
 	err = json.NewEncoder(w).Encode(respj)
 	if err != nil {
 		log.Print(err)
-		return
-	}
-	out, err := exec.Command("rndc", "reload").CombinedOutput()
-	if err != nil {
-		log.Print(err, string(out))
-		http.Error(w, "could not run rndc reload", 503)
 		return
 	}
 }
