@@ -19,12 +19,15 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	r := http.NewServeMux()
 	r.HandleFunc("/etv", doCheck(etv)) //enable TV
-	r.HandleFunc("/blockYT", doCheck(blockYT))
-	r.HandleFunc("/enableYT", doCheck(enableYT))
+	r.HandleFunc("/blockYT", doCheck(lockNamedFile(blockYT)))
+	r.HandleFunc("/enableYT", doCheck(lockNamedFile(enableYT)))
 	r.HandleFunc("/statusYT", acao(statusYT))
-	r.HandleFunc("/blockFB", doCheck(blockFB))
-	r.HandleFunc("/enableFB", doCheck(enableFB))
+	r.HandleFunc("/blockFB", doCheck(lockNamedFile(blockFB)))
+	r.HandleFunc("/enableFB", doCheck(lockNamedFile(enableFB)))
 	r.HandleFunc("/statusFB", acao(statusFB))
+	r.HandleFunc("/blockBeacons", doCheck(lockNamedFile(blockBeacons)))
+	r.HandleFunc("/enableBeacons", doCheck(lockNamedFile(enableBeacons)))
+	r.HandleFunc("/statusBeacons", acao(statusBeacons))
 	log.Fatal(http.ListenAndServe(":9620",
 		handlers.CombinedLoggingHandler(os.Stdout, r)))
 }
@@ -155,6 +158,10 @@ func blockFB(w http.ResponseWriter, r *http.Request) {
 	blockX(w, r, "Facebook")
 }
 
+func blockBeacons(w http.ResponseWriter, r *http.Request) {
+	blockX(w, r, "Beacons")
+}
+
 func blockX(w http.ResponseWriter, r *http.Request, key string) {
 	editX(w, r, key, true, "Blocked!")
 }
@@ -188,6 +195,14 @@ func enableYT(w http.ResponseWriter, r *http.Request) {
 
 func enableFB(w http.ResponseWriter, r *http.Request) {
 	enableX(w, r, "Facebook")
+}
+
+func enableBeacons(w http.ResponseWriter, r *http.Request) {
+	enableX(w, r, "Beacons")
+}
+
+func statusBeacons(w http.ResponseWriter, r *http.Request) {
+	statusX(w, r, "Beacons")
 }
 
 func enableX(w http.ResponseWriter, r *http.Request, key string) {
