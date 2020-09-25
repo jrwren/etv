@@ -28,6 +28,10 @@ func main() {
 	r.HandleFunc("/blockBeacons", doCheck(lockNamedFile(blockBeacons)))
 	r.HandleFunc("/enableBeacons", doCheck(lockNamedFile(enableBeacons)))
 	r.HandleFunc("/statusBeacons", acao(statusBeacons))
+
+	r.HandleFunc("/blockPorn", doCheck(lockNamedFile(blockPorn)))
+	r.HandleFunc("/enablePorn", doCheck(lockNamedFile(enablePorn)))
+	r.HandleFunc("/statusPorn", acao(statusPorn))
 	log.Fatal(http.ListenAndServe(":9620",
 		handlers.CombinedLoggingHandler(os.Stdout, r)))
 }
@@ -162,6 +166,11 @@ func blockBeacons(w http.ResponseWriter, r *http.Request) {
 	blockX(w, r, "Beacons")
 }
 
+
+func blockPorn(w http.ResponseWriter, r *http.Request) {
+	blockX(w, r, "Porn")
+}
+
 func blockX(w http.ResponseWriter, r *http.Request, key string) {
 	editX(w, r, key, true, "Blocked!")
 }
@@ -203,6 +212,14 @@ func enableBeacons(w http.ResponseWriter, r *http.Request) {
 
 func statusBeacons(w http.ResponseWriter, r *http.Request) {
 	statusX(w, r, "Beacons")
+}
+
+func enablePorn(w http.ResponseWriter, r *http.Request) {
+	enableX(w, r, "Porn")
+}
+
+func statusPorn(w http.ResponseWriter, r *http.Request) {
+	statusX(w, r, "Porn")
 }
 
 func enableX(w http.ResponseWriter, r *http.Request, key string) {
