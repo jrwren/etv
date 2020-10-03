@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,7 +19,8 @@ import (
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	r := http.NewServeMux()
-	r.HandleFunc("/etv", doCheck(etv)) //enable TV
+	r.HandleFunc("/etv", doCheck(etv))        //enable TV
+	r.HandleFunc("/statusTV", acao(statusTV)) //status TV
 	r.HandleFunc("/blockYT", doCheck(lockNamedFile(blockYT)))
 	r.HandleFunc("/enableYT", doCheck(lockNamedFile(enableYT)))
 	r.HandleFunc("/statusYT", acao(statusYT))
@@ -79,6 +81,27 @@ func doCheck(f http.HandlerFunc) http.HandlerFunc {
 		}
 		f(w, r)
 	})
+}
+
+func statusTV(w http.ResponseWriter, r *http.Request) {
+	out, err := exec.Command("iptables", "-L", "INPUT").CombinedOutput()
+	if err != nil {
+		log.Print(err, string(out))
+		http.Error(w, "could not run iptables for TV", 503)
+		return
+	}
+	respj := make(map[string]string)
+	respj["status"] = "TV(amazon) and Kodi are currently disabled"
+	for _, l := range strings.Split(string(out), "\n") {
+		if strings.Contains(l, "vizio") {
+			respj["status"] = "TV(amazon) and Kodi are currently enabled"
+		}
+	}
+	err = json.NewEncoder(w).Encode(respj)
+	if err != nil {
+		log.Print(err)
+		return
+	}
 }
 
 func etv(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +188,6 @@ func blockFB(w http.ResponseWriter, r *http.Request) {
 func blockBeacons(w http.ResponseWriter, r *http.Request) {
 	blockX(w, r, "Beacons")
 }
-
 
 func blockPorn(w http.ResponseWriter, r *http.Request) {
 	blockX(w, r, "Porn")
