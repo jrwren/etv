@@ -91,10 +91,10 @@ func statusTV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respj := make(map[string]string)
-	respj["status"] = "TV(amazon) and Kodi are currently disabled"
+	respj["status"] = "TV(amazon) and Kodi are currently enabled"
 	for _, l := range strings.Split(string(out), "\n") {
 		if strings.Contains(l, "vizio") {
-			respj["status"] = "TV(amazon) and Kodi are currently enabled"
+			respj["status"] = "TV(amazon) and Kodi are currently disabled"
 		}
 	}
 	err = json.NewEncoder(w).Encode(respj)
