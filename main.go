@@ -158,7 +158,7 @@ func commentFileBetween(filename, start, stop string, uncomment bool) error {
 	}
 	lines := bytes.Split(b, []byte("\n"))
 	on := false
-	for _, line := range lines {
+	for i, line := range lines {
 		if on && !bytes.HasPrefix(line, []byte("//")) && !uncomment {
 			io.WriteString(f, "//")
 		}
@@ -169,7 +169,10 @@ func commentFileBetween(filename, start, stop string, uncomment bool) error {
 			line = line[2:]
 		}
 		f.Write(line)
-		io.WriteString(f, "\n")
+		// Don't write extra newlines to EOF
+		if i != len(lines)-1 {
+			io.WriteString(f, "\n")
+		}
 		if bytes.Contains(line, []byte(start)) {
 			on = true
 		}
