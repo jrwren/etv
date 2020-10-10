@@ -40,6 +40,8 @@ func main() {
 
 // this global means i should extract to a server type soon.
 var namedMu sync.Mutex
+var tvTimer *time.Timer   // Timer for disabling TV
+var tvTimerTime time.Time // Time of expected TV disable.
 
 func acao(f http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -92,6 +94,9 @@ func statusTV(w http.ResponseWriter, r *http.Request) {
 	}
 	respj := make(map[string]string)
 	respj["status"] = "TV(amazon) and Kodi are currently enabled"
+	if !tvTimerTime.IsZero() {
+		respj["status"] += " for " + tvTimerTime.Sub(time.Now()).String()
+	}
 	for _, l := range strings.Split(string(out), "\n") {
 		if strings.Contains(l, "vizio") {
 			respj["status"] = "TV(amazon) and Kodi are currently disabled"
@@ -105,33 +110,48 @@ func statusTV(w http.ResponseWriter, r *http.Request) {
 }
 
 func etv(w http.ResponseWriter, r *http.Request) {
-	out, err := exec.Command("iptables", "-D", "INPUT", "-s", "vizio.powerpuff",
-		"-j", "DROP").CombinedOutput()
-	if err != nil {
-		log.Print(err, string(out))
-		http.Error(w, "could not run iptables for TV", 503)
-		return
+	if !tvTimerTime.IsZero() {
+		// TV is already enabled, just add time.
+		tvTimerTime = tvTimerTime.Add(15 * time.Minute)
+		if !tvTimer.Stop() {
+			<-tvTimer.C
+		}
+		tvTimer = time.AfterFunc(tvTimerTime.Sub(time.Now()), func() {
+			blockHosts("vizio.powerpuff", "kodi.powerpuff")
+		})
+	} else {
+		out, err := exec.Command("iptables", "-D", "INPUT", "-s", "vizio.powerpuff",
+			"-j", "DROP").CombinedOutput()
+		if err != nil {
+			log.Print(err, string(out))
+			http.Error(w, "could not run iptables for TV", 503)
+			return
+		}
+		out, err = exec.Command("iptables", "-D", "INPUT", "-s", "kodi.powerpuff",
+			"-j", "DROP").CombinedOutput()
+		if err != nil {
+			log.Print(err, string(out))
+			http.Error(w, "could not run iptables for kodi", 503)
+			return
+		}
+		tvTimerTime = time.Now().Add(time.Hour)
+		//go blockIn(time.Hour, "vizio.powerpuff", "kodi.powerpuff")
+		tvTimer = time.AfterFunc(tvTimerTime.Sub(time.Now()), func() {
+			blockHosts("vizio.powerpuff", "kodi.powerpuff")
+		})
 	}
-	out, err = exec.Command("iptables", "-D", "INPUT", "-s", "kodi.powerpuff",
-		"-j", "DROP").CombinedOutput()
-	if err != nil {
-		log.Print(err, string(out))
-		http.Error(w, "could not run iptables for kodi", 503)
-		return
-	}
-	go blockIn(time.Hour, "vizio.powerpuff", "kodi.powerpuff")
 	respj := make(map[string]string)
-	respj["message"] = "TV and Kodi Enabled for 1 hour!"
-	err = json.NewEncoder(w).Encode(respj)
+	respj["message"] = "TV and Kodi Enabled for " + tvTimerTime.Sub(time.Now()).String()
+	err := json.NewEncoder(w).Encode(respj)
 	if err != nil {
 		log.Print(err)
 		return
 	}
 }
 
-func blockIn(d time.Duration, hosts ...string) {
-	time.Sleep(d)
+func blockHosts(hosts ...string) {
 	for _, host := range hosts {
+		tvTimerTime = time.Time{} // Zero it until the next enable.
 		out, err := exec.Command("iptables", "-I", "INPUT", "9", "-s", host,
 			"-j", "DROP").CombinedOutput()
 		if err != nil {
