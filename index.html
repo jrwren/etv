@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style type="text/css">
+        @charset "UTF-8";
+
+        body {
+            font-family: Ubuntu, Arial, "libra sans", sans-serif;
+            font-family: 'Palatino';
+            text-rendering: optimizeLegibility;
+            margin: auto;
+            max-width: 70em;
+            padding: 2em;
+        }
+    </style>
+
+</head>
+
+<body>
+    <h1> links</h1>
+    <ul>
+        <li><a href="http://drawingroom.powerpuff:8080">drawingroom kodi</a>
+        <li><a href="/smokeping">smokeping</a>
+            <!-- li><a href="http://delays.powerpuff:9000/">thelounge</a -->
+        <li><a href="http://delays.powerpuff:3141/admin/">pihole</a>
+        <li><a href="http://👻.powerpuff">http://👻.powerpuff</a>
+        <li><a href="http://delays.powerpuff:19999/">netdata</a>
+        <li><a href="http://delays.powerpuff:4533/">navidrome</a>
+        <li><a href="http://delays.powerpuff:8053/">ISC Bind 9 Configuration and Statistics</a>
+        <li><a href="https://nc.xmtp.net/">nextcloud</a>
+    </ul>
+    <h1> server filter controls</h1>
+
+    <div id="statusTV"> </div>
+    <button id="enableTV">enable/add time to the TV</button>
+    <div>
+        <div id="statusYT"> </div>
+        <button id="enableYT">enable YouTube</button>
+        <button id="disableYT">disable YouTube</button>
+        <div id="statusFB"> </div>
+        <button id="enableFB">enable Facebook</button>
+        <button id="disableFB">disable Facebook</button>
+        <div>Beacons are trackers too, pihole blocks some, but this also blocks some others</div>
+        <div id="statusBeacons"> </div>
+        <button id="enableBeacons">enable Beacons</button>
+        <button id="disableBeacons">disable Beacons</button>
+        <div id="statusPorn"> </div>
+        <button id="enablePorn">enable Porn</button>
+        <button id="disablePorn">disable Porn</button>
+        <div id="response"> </div>
+    </div>
+    <script>
+        "use strict";
+        let etv = document.getElementById("enableTV")
+        let statusTV = document.getElementById("statusTV")
+        let enableYT = document.getElementById("enableYT")
+        let disableYT = document.getElementById("disableYT")
+        let statusYT = document.getElementById("statusYT")
+        let enableFB = document.getElementById("enableFB")
+        let disableFB = document.getElementById("disableFB")
+        let statusFB = document.getElementById("statusFB")
+        let enableBeacons = document.getElementById("enableBeacons")
+        let disableBeacons = document.getElementById("disableBeacons")
+        let statusBeacons = document.getElementById("statusBeacons")
+        let enablePorn = document.getElementById("enablePorn")
+        let disablePorn = document.getElementById("disablePorn")
+        let statusPorn = document.getElementById("statusPorn")
+        let resH = document.getElementById("response")
+        etv.onclick = function () {
+            hit("etv")
+        }
+        enableYT.onclick = () => hit("enableYT")
+        disableYT.onclick = () => hit("blockYT")
+        enableFB.onclick = () => hit("enableFB")
+        disableFB.onclick = () => hit("blockFB")
+        enableBeacons.onclick = () => hit("enableBeacons")
+        disableBeacons.onclick = () => hit("blockBeacons")
+        enablePorn.onclick = () => hit("enablePorn")
+        disablePorn.onclick = () => hit("blockPorn")
+        const server = "http://delays.powerpuff:9620/"
+        function hit(path) {
+            const postbody = { "key": "1234" }
+            fetch(server + path, { "method": "POST", "body": JSON.stringify(postbody) })
+                .then(function (response) {
+                    if (!response.ok) {
+                        resH.firstChild.data = "there was an error enabling TV:" + response.status
+                        return
+                    }
+                    return response.json()
+                }).then(data => {
+                    console.log(data)
+                    resH.firstChild.data = data.message
+                    updateYTStatus()
+                    updateFBStatus()
+                    updateBeaconStatus()
+                    updatePornStatus()
+                    updateTVStatus()
+                })
+        }
+        function updateYTStatus() {
+            fetch(server + "statusYT").then((resp) => {
+                if (!resp.ok) {
+                    statusYT.firstChild.data = "could not fetch current YouTube status"
+                    return
+                }
+                return resp.json()
+            }).then(data => statusYT.firstChild.data = data.status)
+        }
+        function updateFBStatus() {
+            fetch(server + "statusFB").then((resp) => {
+                if (!resp.ok) {
+                    statusYB.firstChild.data = "could not fetch current Facebook status"
+                    return
+                }
+                return resp.json()
+            }).then(data => statusFB.firstChild.data = data.status)
+        }
+        function updateBeaconStatus() {
+            updateStatus("statusBeacons", statusBeacons, "Beacon")
+        }
+        function updatePornStatus() {
+            updateStatus("statusPorn", statusPorn, "Porn")
+        }
+        function updateTVStatus() {
+            updateStatus("statusTV", statusTV, "TV")
+        }
+        function updateStatus(endpoint, element, msg) {
+            fetch(server + endpoint).then((resp) => {
+                if (!resp.ok) {
+                    element.firstChild.data = "could not fetch current " + msg + " status"
+                    return
+                }
+                return resp.json()
+            }).then(data => element.firstChild.data = data.status)
+        }
+        updateTVStatus()
+        updateYTStatus()
+        updateFBStatus()
+        updateBeaconStatus()
+        updatePornStatus()
+    </script>
+</body>
+
+</html>
