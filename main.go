@@ -17,7 +17,9 @@ import (
 )
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	// Running under systemd now, don't need date & time.
+	// log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.SetFlags(log.Lshortfile)
 	r := http.NewServeMux()
 	r.HandleFunc("/etv", doCheck(etv))        //enable TV
 	r.HandleFunc("/statusTV", acao(statusTV)) //status TV
