@@ -336,7 +336,7 @@ func NoDateForSystemDHandler(out io.Writer, h http.Handler) http.Handler {
 			}
 		}
 		t := time.Now() // Not to log the time, but to compute time of request.
-		ww := &wrappedResponseWriter{ResponseWriter: w}
+		ww := &wrappedResponseWriter{ResponseWriter: w, code: 200}
 		referer := r.Header.Get("Referer")
 		ua := r.Header.Get("User-Agent")
 		h.ServeHTTP(ww, r)
