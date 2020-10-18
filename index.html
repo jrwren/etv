@@ -9,12 +9,18 @@
         @charset "UTF-8";
 
         body {
-            font-family: Ubuntu, Arial, "libra sans", sans-serif;
-            font-family: 'Palatino';
+            font-family: 'Palatino', Ubuntu, Arial, "libra sans", sans-serif;
             text-rendering: optimizeLegibility;
             margin: auto;
             max-width: 70em;
-            padding: 2em;
+            padding: 0 1em;
+        }
+
+        ul#server_control li {
+            font-family: 'Courier New', Courier, monospace;
+            width: 20em;
+            display: inline-block;
+            margin: 1em;
         }
     </style>
 
@@ -34,25 +40,34 @@
         <li><a href="https://nc.xmtp.net/">nextcloud</a>
     </ul>
     <h1> server filter controls</h1>
-
-    <div id="statusTV"> </div>
-    <button id="enableTV">enable/add time to the TV</button>
-    <div>
-        <div id="statusYT"> </div>
-        <button id="enableYT">enable YouTube</button>
-        <button id="disableYT">disable YouTube</button>
-        <div id="statusFB"> </div>
-        <button id="enableFB">enable Facebook</button>
-        <button id="disableFB">disable Facebook</button>
-        <div>Beacons are trackers too, pihole blocks some, but this also blocks some others</div>
-        <div id="statusBeacons"> </div>
-        <button id="enableBeacons">enable Beacons</button>
-        <button id="disableBeacons">disable Beacons</button>
-        <div id="statusPorn"> </div>
-        <button id="enablePorn">enable Porn</button>
-        <button id="disablePorn">disable Porn</button>
-        <div id="response"> </div>
-    </div>
+    <div id="response"> </div>
+    <ul id="server_control">
+        <li>
+            <div id="statusTV"> </div>
+            <button id="enableTV">enable/add time to the TV</button>
+        </li>
+        <li>
+            <div id="statusYT"> </div>
+            <button id="enableYT">enable YouTube</button>
+            <button id="disableYT">disable YouTube</button>
+        </li>
+        <li>
+            <div id="statusFB"> </div>
+            <button id="enableFB">enable Facebook</button>
+            <button id="disableFB">disable Facebook</button>
+        </li>
+        <li>
+            <div>Beacons are trackers too, pihole blocks some, but this also blocks some others</div>
+            <div id="statusBeacons"> </div>
+            <button id="enableBeacons">enable Beacons</button>
+            <button id="disableBeacons">disable Beacons</button>
+        </li>
+        <li>
+            <div id="statusPorn"> </div>
+            <button id="enablePorn">enable Porn</button>
+            <button id="disablePorn">disable Porn</button>
+        </li>
+    </ul>
     <script>
         "use strict";
         let etv = document.getElementById("enableTV")
