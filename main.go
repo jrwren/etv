@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -12,8 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/gorilla/handlers"
 )
 
 func main() {
@@ -37,7 +37,7 @@ func main() {
 	r.HandleFunc("/enablePorn", doCheck(lockNamedFile(enablePorn)))
 	r.HandleFunc("/statusPorn", acao(statusPorn))
 	log.Fatal(http.ListenAndServe(":9620",
-		handlers.CombinedLoggingHandler(os.Stdout, r)))
+		NoDateForSystemDHandler(os.Stdout, r)))
 }
 
 // this global means i should extract to a server type soon.
@@ -306,4 +306,61 @@ func statusX(w http.ResponseWriter, r *http.Request, key string) {
 		log.Print(err)
 		return
 	}
+}
+
+// NoDateForSystemDHandler is a logging handler which writes most fields of
+// a vhost combined logger without the date, because systemd logs a date.
+// Normal vhost-combined apache format:
+//   %v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i
+// Ours:
+//   %v:%p %h %u \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i
+func NoDateForSystemDHandler(out io.Writer, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := r.Host
+		user := "-"
+		auth := r.Header.Get("Authorization")
+
+		if strings.HasPrefix(auth, "Basic ") {
+			up, err := base64.RawStdEncoding.DecodeString(auth[6:])
+			if err == nil {
+				ups := strings.SplitN(string(up), ":", 2)
+				if len(ups) == 2 {
+					user = ups[0]
+				}
+			}
+
+		}
+		if r.URL.User != nil {
+			if un := r.URL.User.Username(); un != "" {
+				user = un
+			}
+		}
+		t := time.Now() // Not to log the time, but to compute time of request.
+		ww := &wrappedResponseWriter{ResponseWriter: w}
+		referer := r.Header.Get("Referer")
+		ua := r.Header.Get("User-Agent")
+		h.ServeHTTP(ww, r)
+		rt := time.Now().Sub(t)
+
+		fmt.Fprintf(out, "%s %s %s \"%s %s %s\" %d %d %q %q %s\n",
+			host, r.RemoteAddr, user, r.Method, r.RequestURI,
+			r.Proto, ww.code, ww.size, referer, ua, rt)
+	})
+}
+
+type wrappedResponseWriter struct {
+	http.ResponseWriter     // the underlying ResponseWriter.
+	code                int // http code returned.
+	size                int // size of http response.
+}
+
+func (w *wrappedResponseWriter) Write(b []byte) (int, error) {
+	s, err := w.ResponseWriter.Write(b)
+	w.size += s
+	return s, err
+}
+
+func (w *wrappedResponseWriter) WriteHeader(statusCode int) {
+	w.code = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
 }
