@@ -22,8 +22,8 @@
             display: inline-block;
             margin: 1em;
         }
-        /* The switch - the box around the slider */
-        .switch {
+                /* The switch - the box around the slider */
+                .switch {
           position: relative;
           display: inline-block;
           width: 60px;
@@ -93,7 +93,7 @@
     <ul>
         <li><a href="http://drawingroom.powerpuff:8080">drawingroom kodi</a>
         <li><a href="/smokeping">smokeping</a>
-            <!-- li><a href="http://delays.powerpuff:9000/">thelounge</a -->
+        <!-- li><a href="http://delays.powerpuff:9000/">thelounge</a -->
         <li><a href="http://delays.powerpuff:3141/admin/">pihole</a>
         <li><a href="http://👻.powerpuff">http://👻.powerpuff</a>
         <li><a href="http://delays.powerpuff:19999/">netdata</a>
@@ -105,71 +105,87 @@
     <div id="response"> </div>
     <ul id="server_control">
         <li>
+            <div id="statusTV"> </div>
             <span>enable/add time to the TV</span>
             <label class="switch" id="statusTV">
-                <input type="checkbox">
+                <input id="checkboxTV" type="checkbox">
                 <span class="slider round"></span>
             </label>
         </li>
         <li>
+            <div id="statusYT"> </div>
             <span>enable/disable YouTube</span>
-            <label class="switch" id="switchYT">
-                <input type="checkbox">
+            <label class="switch">
+                <input id="checkboxYT" type="checkbox">
                 <span class="slider round"></span>
             </label>
         </li>
         <li>
+            <div id="statusFB"> </div>
             <span>enable/disable Facebook</span>
-            <label class="switch" id="switchFB">
-                <input type="checkbox">
+            <label class="switch">
+                <input id="checkboxFB" type="checkbox">
                 <span class="slider round"></span>
             </label>
         </li>
-        <li>
             <div>Beacons are trackers too, pihole blocks some, but this also blocks some others</div>
+        <li>
+            <div id="statusBeacons"> </div>
             <span>enable/disable Beacons</span>
-            <label class="switch" id="switchBeacons">
-                <input type="checkbox">
+            <label class="switch">
+                <input id="checkboxBeacons" type="checkbox">
                 <span class="slider round"></span>
             </label>
         </li>
         <li>
+            <div id="statusPorn"> </div>
             <span>enable/disable Porn</span>
-            <label class="switch" id="switchPorn">
-                <input type="checkbox">
+            <label class="switch">
+                <input id="checkboxPorn" type="checkbox">
                 <span class="slider round"></span>
             </label>
         </li>
     </ul>
     <script>
         "use strict";
-        let etv = document.getElementById("enableTV")
-        let statusTV = document.getElementById("statusTV")
-        let enableYT = document.getElementById("enableYT")
-        let disableYT = document.getElementById("disableYT")
-        let statusYT = document.getElementById("statusYT")
-        let enableFB = document.getElementById("enableFB")
-        let disableFB = document.getElementById("disableFB")
-        let statusFB = document.getElementById("statusFB")
-        let enableBeacons = document.getElementById("enableBeacons")
-        let disableBeacons = document.getElementById("disableBeacons")
-        let statusBeacons = document.getElementById("statusBeacons")
-        let enablePorn = document.getElementById("enablePorn")
-        let disablePorn = document.getElementById("disablePorn")
-        let statusPorn = document.getElementById("statusPorn")
-        let resH = document.getElementById("response")
+        const etv = document.getElementById("checkboxTV")
+        const statusTV = document.getElementById("statusTV")//
+        //const switchETV = document.getElementById("switchETV")
+
+        const switchYT = document.getElementById("checkboxYT")
+        const statusYT = document.getElementById("statusYT")//
+        
+        const switchFB = document.getElementById("checkboxFB")
+        const statusFB = document.getElementById("statusFB")//
+        
+        const switchBeacons = document.getElementById("checkboxBeacons")
+        const statusBeacons = document.getElementById("statusBeacons")//
+        
+        const switchPorn = document.getElementById("checkboxPorn")
+        const statusPorn = document.getElementById("statusPorn")//
+        
+        const resH = document.getElementById("response")
+        
+        //make etv.onclick like below
         etv.onclick = function () {
             hit("etv")
         }
-        enableYT.onclick = () => hit("enableYT")
-        disableYT.onclick = () => hit("blockYT")
-        enableFB.onclick = () => hit("enableFB")
-        disableFB.onclick = () => hit("blockFB")
-        enableBeacons.onclick = () => hit("enableBeacons")
-        disableBeacons.onclick = () => hit("blockBeacons")
-        enablePorn.onclick = () => hit("enablePorn")
-        disablePorn.onclick = () => hit("blockPorn")
+        
+        switchYT.onclick = () => dependOnCheck(switchYT, "YT")
+        switchFB.onclick = () => dependOnCheck(switchFB, "FB")
+        switchBeacons.onclick = () => dependOnCheck(switchBeacons, "Beacons")
+        switchPorn.onclick = () => dependOnCheck(switchPorn, "Porn")
+        
+        function dependOnCheck(inputElement, identifier) {
+            if (!inputElement.checked) {
+                hit("enable"+identifier)
+            }else{
+                hit("block"+identifier)
+            }
+        }
+        
         const server = "http://delays.powerpuff:9620/"
+
         function hit(path) {
             const postbody = { "key": "1234" }
             fetch(server + path, { "method": "POST", "body": JSON.stringify(postbody) })
@@ -189,6 +205,7 @@
                     updateTVStatus()
                 })
         }
+
         function updateYTStatus() {
             fetch(server + "statusYT").then((resp) => {
                 if (!resp.ok) {
@@ -198,6 +215,7 @@
                 return resp.json()
             }).then(data => statusYT.firstChild.data = data.status)
         }
+
         function updateFBStatus() {
             fetch(server + "statusFB").then((resp) => {
                 if (!resp.ok) {
@@ -207,15 +225,19 @@
                 return resp.json()
             }).then(data => statusFB.firstChild.data = data.status)
         }
+
         function updateBeaconStatus() {
             updateStatus("statusBeacons", statusBeacons, "Beacon")
         }
+
         function updatePornStatus() {
             updateStatus("statusPorn", statusPorn, "Porn")
         }
+
         function updateTVStatus() {
             updateStatus("statusTV", statusTV, "TV")
         }
+
         function updateStatus(endpoint, element, msg) {
             fetch(server + endpoint).then((resp) => {
                 if (!resp.ok) {
@@ -225,6 +247,7 @@
                 return resp.json()
             }).then(data => element.firstChild.data = data.status)
         }
+
         updateTVStatus()
         updateYTStatus()
         updateFBStatus()
