@@ -228,17 +228,17 @@
             updateStatus("statusTV", statusTV, "TV", etv)
         }
 
-        function updateStatus(endpoint, element, msg, element2) {
+        function updateStatus(endpoint, msgelement, msg, checkbox) {
             fetch(server + endpoint).then((resp) => {
                 if (!resp.ok) {
-                    element.firstChild.data = "could not fetch current " + msg + " status"
+                    msgelement.firstChild.data = "could not fetch current " + msg + " status"
                     return
                 }
                 return resp.json()
             }).then(data => {
-                element.firstChild.data = data.status
+                msgelement.firstChild.data = data.status
                 if (data.status.includes("enabled")) {
-                    element2.checked = true
+                    checkbox.checked = true
                 }
             })
         }
