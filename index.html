@@ -16,73 +16,75 @@
             max-width: 70em;
             padding: 2em;
         }
+
         ul#server_control li {
             font-family: 'Courier New', Courier, monospace;
             width: 20em;
             display: inline-block;
             margin: 1em;
         }
-                /* The switch - the box around the slider */
-                .switch {
-          position: relative;
-          display: inline-block;
-          width: 60px;
-          height: 34px;
-        }
-        
-        /* Hide default HTML checkbox */
-        .switch input {
-          opacity: 0;
-          width: 0;
-          height: 0;
-        }
-        
-        /* The slider */
-        .slider {
-          position: absolute;
-          cursor: pointer;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-color: #ccc;
-          -webkit-transition: .4s;
-          transition: .4s;
-        }
-        
-        .slider:before {
-          position: absolute;
-          content: "";
-          height: 26px;
-          width: 26px;
-          left: 4px;
-          bottom: 4px;
-          background-color: white;
-          -webkit-transition: .4s;
-          transition: .4s;
-        }
-        
-        input:checked + .slider {
-          background-color: #2196F3;
-        }
-        
-        input:focus + .slider {
-          box-shadow: 0 0 1px #2196F3;
+
+        /* The switch - the box around the slider */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
         }
 
-        input:checked + .slider:before {
-          -webkit-transform: translateX(26px);
-          -ms-transform: translateX(26px);
-          transform: translateX(26px);
+        /* Hide default HTML checkbox */
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        /* The slider */
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            -webkit-transition: .4s;
+            transition: .4s;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            -webkit-transition: .4s;
+            transition: .4s;
+        }
+
+        input:checked+.slider {
+            background-color: #2196F3;
+        }
+
+        input:focus+.slider {
+            box-shadow: 0 0 1px #2196F3;
+        }
+
+        input:checked+.slider:before {
+            -webkit-transform: translateX(26px);
+            -ms-transform: translateX(26px);
+            transform: translateX(26px);
         }
 
         /* Rounded sliders */
         .slider.round {
-          border-radius: 34px;
+            border-radius: 34px;
         }
 
         .slider.round:before {
-          border-radius: 50%;
+            border-radius: 50%;
         }
     </style>
 
@@ -93,7 +95,6 @@
     <ul>
         <li><a href="http://drawingroom.powerpuff:8080">drawingroom kodi</a>
         <li><a href="/smokeping">smokeping</a>
-        <!-- li><a href="http://delays.powerpuff:9000/">thelounge</a -->
         <li><a href="http://delays.powerpuff:3141/admin/">pihole</a>
         <li><a href="http://👻.powerpuff">http://👻.powerpuff</a>
         <li><a href="http://delays.powerpuff:19999/">netdata</a>
@@ -107,7 +108,7 @@
         <li>
             <div id="statusTV"> </div>
             <span>enable/add time to the TV</span>
-            <label class="switch" id="statusTV">
+            <label class="switch">
                 <input id="checkboxTV" type="checkbox">
                 <span class="slider round"></span>
             </label>
@@ -128,7 +129,7 @@
                 <span class="slider round"></span>
             </label>
         </li>
-            <div>Beacons are trackers too, pihole blocks some, but this also blocks some others</div>
+        <div>Beacons are trackers too, pihole blocks some, but this also blocks some others</div>
         <li>
             <div id="statusBeacons"> </div>
             <span>enable/disable Beacons</span>
@@ -150,40 +151,41 @@
         "use strict";
         const etv = document.getElementById("checkboxTV")
         const statusTV = document.getElementById("statusTV")//
-        //const switchETV = document.getElementById("switchETV")
 
         const switchYT = document.getElementById("checkboxYT")
         const statusYT = document.getElementById("statusYT")//
-        
+
         const switchFB = document.getElementById("checkboxFB")
         const statusFB = document.getElementById("statusFB")//
-        
+
         const switchBeacons = document.getElementById("checkboxBeacons")
         const statusBeacons = document.getElementById("statusBeacons")//
-        
+
         const switchPorn = document.getElementById("checkboxPorn")
         const statusPorn = document.getElementById("statusPorn")//
-        
+
         const resH = document.getElementById("response")
-        
+
         //make etv.onclick like below
         etv.onclick = function () {
             hit("etv")
         }
-        
+
         switchYT.onclick = () => dependOnCheck(switchYT, "YT")
         switchFB.onclick = () => dependOnCheck(switchFB, "FB")
         switchBeacons.onclick = () => dependOnCheck(switchBeacons, "Beacons")
         switchPorn.onclick = () => dependOnCheck(switchPorn, "Porn")
-        
+
         function dependOnCheck(inputElement, identifier) {
-            if (!inputElement.checked) {
-                hit("enable"+identifier)
-            }else{
-                hit("block"+identifier)
+            // The logic here looks backwards because this executes AFTER
+            // the state change.
+            if (inputElement.checked) {
+                hit("enable" + identifier)
+                return
             }
+            hit("block" + identifier)
         }
-        
+
         const server = "http://delays.powerpuff:9620/"
 
         function hit(path) {
@@ -207,45 +209,38 @@
         }
 
         function updateYTStatus() {
-            fetch(server + "statusYT").then((resp) => {
-                if (!resp.ok) {
-                    statusYT.firstChild.data = "could not fetch current YouTube status"
-                    return
-                }
-                return resp.json()
-            }).then(data => statusYT.firstChild.data = data.status)
+            updateStatus("statusYT", statusYT, "Youtube", switchYT)
         }
 
         function updateFBStatus() {
-            fetch(server + "statusFB").then((resp) => {
-                if (!resp.ok) {
-                    statusYB.firstChild.data = "could not fetch current Facebook status"
-                    return
-                }
-                return resp.json()
-            }).then(data => statusFB.firstChild.data = data.status)
+            updateStatus("statusFB", statusFB, "Facebook", switchFB)
         }
 
         function updateBeaconStatus() {
-            updateStatus("statusBeacons", statusBeacons, "Beacon")
+            updateStatus("statusBeacons", statusBeacons, "Beacon", switchBeacons)
         }
 
         function updatePornStatus() {
-            updateStatus("statusPorn", statusPorn, "Porn")
+            updateStatus("statusPorn", statusPorn, "Porn", switchPorn)
         }
 
         function updateTVStatus() {
-            updateStatus("statusTV", statusTV, "TV")
+            updateStatus("statusTV", statusTV, "TV", etv)
         }
 
-        function updateStatus(endpoint, element, msg) {
+        function updateStatus(endpoint, element, msg, element2) {
             fetch(server + endpoint).then((resp) => {
                 if (!resp.ok) {
                     element.firstChild.data = "could not fetch current " + msg + " status"
                     return
                 }
                 return resp.json()
-            }).then(data => element.firstChild.data = data.status)
+            }).then(data => {
+                element.firstChild.data = data.status
+                if (data.status.includes("enabled")) {
+                    element2.checked = true
+                }
+            })
         }
 
         updateTVStatus()
