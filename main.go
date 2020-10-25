@@ -97,12 +97,20 @@ func statusTV(w http.ResponseWriter, r *http.Request) {
 	respj := make(map[string]string)
 	respj["status"] = "TV(amazon) and Kodi are currently enabled"
 	if !tvTimerTime.IsZero() {
-		respj["status"] += " for " + tvTimerTime.Sub(time.Now()).String()
+		respj["status"] += " for " + time.Until(tvTimerTime).String()
 	}
 	for _, l := range strings.Split(string(out), "\n") {
 		if strings.Contains(l, "vizio") {
 			respj["status"] = "TV(amazon) and Kodi are currently disabled"
 		}
+	}
+	// State could be wonky on first run if tvTimeTime IsZero AND tv is enabled.
+	if tvTimerTime.IsZero() && strings.HasSuffix(respj["status"], "enabled") {
+		tvTimerTime = time.Now().Add(time.Hour)
+		//go blockIn(time.Hour, "vizio.powerpuff", "kodi.powerpuff")
+		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
+			blockHosts("vizio.powerpuff", "kodi.powerpuff")
+		})
 	}
 	err = json.NewEncoder(w).Encode(respj)
 	if err != nil {
@@ -118,7 +126,7 @@ func etv(w http.ResponseWriter, r *http.Request) {
 		if !tvTimer.Stop() {
 			<-tvTimer.C
 		}
-		tvTimer = time.AfterFunc(tvTimerTime.Sub(time.Now()), func() {
+		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
 			blockHosts("vizio.powerpuff", "kodi.powerpuff")
 		})
 	} else {
@@ -138,12 +146,12 @@ func etv(w http.ResponseWriter, r *http.Request) {
 		}
 		tvTimerTime = time.Now().Add(time.Hour)
 		//go blockIn(time.Hour, "vizio.powerpuff", "kodi.powerpuff")
-		tvTimer = time.AfterFunc(tvTimerTime.Sub(time.Now()), func() {
+		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
 			blockHosts("vizio.powerpuff", "kodi.powerpuff")
 		})
 	}
 	respj := make(map[string]string)
-	respj["message"] = "TV and Kodi Enabled for " + tvTimerTime.Sub(time.Now()).String()
+	respj["message"] = "TV and Kodi Enabled for " + time.Until(tvTimerTime).String()
 	err := json.NewEncoder(w).Encode(respj)
 	if err != nil {
 		log.Print(err)
@@ -182,7 +190,10 @@ func commentFileBetween(filename, start, stop string, uncomment bool) error {
 	on := false
 	for i, line := range lines {
 		if on && !bytes.HasPrefix(line, []byte("//")) && !uncomment {
-			io.WriteString(f, "//")
+			_, err = io.WriteString(f, "//")
+			if err != nil {
+				log.Println("ERROR", err)
+			}
 		}
 		if bytes.Contains(line, []byte(stop)) {
 			on = false
@@ -190,10 +201,16 @@ func commentFileBetween(filename, start, stop string, uncomment bool) error {
 		if on && bytes.HasPrefix(line, []byte("//")) && uncomment {
 			line = line[2:]
 		}
-		f.Write(line)
+		_, err = f.Write(line)
+		if err != nil {
+			log.Println("ERROR", err)
+		}
 		// Don't write extra newlines to EOF
 		if i != len(lines)-1 {
-			io.WriteString(f, "\n")
+			_, err = io.WriteString(f, "\n")
+			if err != nil {
+				log.Println("ERROR", err)
+			}
 		}
 		if bytes.Contains(line, []byte(start)) {
 			on = true
@@ -340,7 +357,7 @@ func NoDateForSystemDHandler(out io.Writer, h http.Handler) http.Handler {
 		referer := r.Header.Get("Referer")
 		ua := r.Header.Get("User-Agent")
 		h.ServeHTTP(ww, r)
-		rt := time.Now().Sub(t)
+		rt := time.Since(t)
 
 		fmt.Fprintf(out, "%s %s %s \"%s %s %s\" %d %d %q %q %s\n",
 			host, r.RemoteAddr, user, r.Method, r.RequestURI,
