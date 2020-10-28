@@ -2,25 +2,40 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
+	"math/big"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gorilla/securecookie"
+	"github.com/jrwren/sadv"
+)
+
+const (
+	sessionCookieName = "session"
 )
 
 func main() {
-	// Running under systemd now, don't need date & time.
-	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.SetFlags(log.Lshortfile)
+	// Sure you could use GenerateKey or you could use petname -words=6 😀
+	var hashKey = []byte("")
+	// if block key is nil, then no encryption.
+	// var blockKey = []byte("")
+	s = securecookie.New(hashKey, nil)
 	r := http.NewServeMux()
+	r.HandleFunc("/login", login)
+	r.HandleFunc("/logout", logout)
 	r.HandleFunc("/etv", doCheck(etv))        //enable TV
 	r.HandleFunc("/statusTV", acao(statusTV)) //status TV
 	r.HandleFunc("/blockYT", doCheck(lockNamedFile(blockYT)))
@@ -45,9 +60,12 @@ var namedMu sync.Mutex
 var tvTimer *time.Timer   // Timer for disabling TV
 var tvTimerTime time.Time // Time of expected TV disable.
 
+var s *securecookie.SecureCookie
+
 func acao(f http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Access-Control-Allow-Origin", "http://delays.powerpuff")
+		w.Header().Add("Access-Control-Allow-Credentials", "true")
 		f(w, r)
 	})
 }
@@ -64,6 +82,19 @@ func emptyHandlerFunc() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 }
 
+func getSecureSessionCookieValue(r *http.Request) (string, error) {
+	var value string
+	cookie, err := r.Cookie(sessionCookieName)
+	if err != nil {
+		return "", err
+	}
+	err = s.Decode(sessionCookieName, cookie.Value, &value)
+	if err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
 func doCheck(f http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -71,27 +102,82 @@ func doCheck(f http.HandlerFunc) http.HandlerFunc {
 				http.StatusMethodNotAllowed)
 			return
 		}
-		//w.Header().Add("Access-Control-Allow-Origin", "http://delays.powerpuff")
 		acao(emptyHandlerFunc())(w, r)
-		b := make(map[string]string)
-		err := json.NewDecoder(r.Body).Decode(&b)
+		_, err := getSecureSessionCookieValue(r)
 		if err != nil {
-			log.Print(err)
 			return
 		}
-		if b["key"] != "1234" {
-			log.Print("key mismatch", b["key"])
-			return
-		}
+		// At this point, don't even care what the cookie value is, since we
+		// aren't using the authenticated user for anything. Just accept that
+		// it is secure.
 		f(w, r)
 	})
+}
+
+func logout(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		log.Panicln(err)
+	}
+	redir := r.Form.Get("redirect")
+	if redir == "" {
+		redir = "http://delays.powerpuff"
+	}
+	c := &http.Cookie{
+		Name:     "session",
+		Value:    "",
+		Expires:  time.Now().Add(-1),
+		HttpOnly: true,
+	}
+	http.SetCookie(w, c)
+	http.Redirect(w, r, redir, http.StatusTemporaryRedirect)
+}
+
+func login(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed),
+			http.StatusMethodNotAllowed)
+	}
+	err := r.ParseForm()
+	if err != nil {
+		log.Panicln(err)
+	}
+	username := r.Form.Get("username")
+	_, err = sadv.SASLauthdVerifyPassword("",
+		username,
+		r.Form.Get("password"),
+		"", "", "")
+	if err != nil {
+		_, err = io.WriteString(w, "authentication failed unknown username or invalid password")
+		if err != nil {
+			log.Println(err)
+		}
+		return
+	}
+	i, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	cvalue, err := s.Encode(sessionCookieName, fmt.Sprint(username, ":", i))
+	if err != nil {
+		log.Panic(err) // Won't happen. right?
+	}
+	c := &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    cvalue,
+		Expires:  time.Now().Add(365 * 24 * time.Hour),
+		HttpOnly: true,
+	}
+	http.SetCookie(w, c)
+	http.Redirect(w, r, r.Form.Get("redirect"), http.StatusTemporaryRedirect)
 }
 
 func statusTV(w http.ResponseWriter, r *http.Request) {
 	out, err := exec.Command("iptables", "-L", "INPUT").CombinedOutput()
 	if err != nil {
 		log.Print(err, string(out))
-		http.Error(w, "could not run iptables for TV", 503)
+		http.Error(w, "could not run iptables for TV", http.StatusServiceUnavailable)
 		return
 	}
 	respj := make(map[string]string)
@@ -111,6 +197,13 @@ func statusTV(w http.ResponseWriter, r *http.Request) {
 		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
 			blockHosts("vizio.powerpuff", "kodi.powerpuff")
 		})
+	}
+	val, err := getSecureSessionCookieValue(r)
+	if err == nil {
+		s := strings.Split(val, ":")
+		username := s[0]
+		respj["loginstatus"] = "true"
+		respj["username"] = username
 	}
 	err = json.NewEncoder(w).Encode(respj)
 	if err != nil {
@@ -134,14 +227,14 @@ func etv(w http.ResponseWriter, r *http.Request) {
 			"-j", "DROP").CombinedOutput()
 		if err != nil {
 			log.Print(err, string(out))
-			http.Error(w, "could not run iptables for TV", 503)
+			http.Error(w, "could not run iptables for TV", http.StatusServiceUnavailable)
 			return
 		}
 		out, err = exec.Command("iptables", "-D", "INPUT", "-s", "kodi.powerpuff",
 			"-j", "DROP").CombinedOutput()
 		if err != nil {
 			log.Print(err, string(out))
-			http.Error(w, "could not run iptables for kodi", 503)
+			http.Error(w, "could not run iptables for kodi", http.StatusServiceUnavailable)
 			return
 		}
 		tvTimerTime = time.Now().Add(time.Hour)
@@ -243,7 +336,7 @@ func editX(w http.ResponseWriter, r *http.Request, key string, uncomment bool, m
 	err := commentFileBetween(namedFile, key, "End", uncomment)
 	if err != nil {
 		log.Print(err)
-		http.Error(w, "could not edit config file", 503)
+		http.Error(w, "could not edit config file", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -257,7 +350,7 @@ func editX(w http.ResponseWriter, r *http.Request, key string, uncomment bool, m
 	out, err := exec.Command("rndc", "reload").CombinedOutput()
 	if err != nil {
 		log.Print(err, string(out))
-		http.Error(w, "could not run rndc reload", 503)
+		http.Error(w, "could not run rndc reload", http.StatusServiceUnavailable)
 		return
 	}
 }

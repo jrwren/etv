@@ -86,12 +86,37 @@
         .slider.round:before {
             border-radius: 50%;
         }
+
+        #loginform {
+            float: right;
+        }
+
+        #logoutform {
+            float: right;
+            display: none;
+        }
     </style>
 
 </head>
 
 <body>
     <h1>links</h1>
+    <div id="loginform">
+        <form method="POST" action="http://delays.powerpuff:9620/login">
+            <input type="text" placeholder="username" name="username" />
+            <br />
+            <input type="password" placeholder="password" name="password" />
+            <br />
+            <input type="hidden" name="redirect" value="http://delays.powerpuff/" />
+            <button>login</button>
+        </form>
+    </div>
+    <div id="logoutform">
+        <div id="username"></div>
+        <button id="logout"><a
+                href="http://delays.powerpuff:9620/logout?redirect=http://delays.powerpuff/#loggedout">logout</a>
+            </botton>
+    </div>
     <ul>
         <li><a href="http://drawingroom.powerpuff:8080">drawingroom kodi</a>
         <li><a href="/smokeping">smokeping</a>
@@ -149,6 +174,7 @@
     </ul>
     <script>
         "use strict";
+
         const etv = document.getElementById("checkboxTV")
         const statusTV = document.getElementById("statusTV")//
 
@@ -189,8 +215,8 @@
         const server = "http://delays.powerpuff:9620/"
 
         function hit(path) {
-            const postbody = { "key": "1234" }
-            fetch(server + path, { "method": "POST", "body": JSON.stringify(postbody) })
+            const postbody = { "nope": "nothing" }
+            fetch(server + path, { "method": "POST", credentials: "include", "body": JSON.stringify(postbody) })
                 .then(function (response) {
                     if (!response.ok) {
                         resH.firstChild.data = "there was an error enabling TV:" + response.status
@@ -229,7 +255,7 @@
         }
 
         function updateStatus(endpoint, msgelement, msg, checkbox) {
-            fetch(server + endpoint).then((resp) => {
+            fetch(server + endpoint, { credentials: "include" }).then((resp) => {
                 if (!resp.ok) {
                     msgelement.firstChild.data = "could not fetch current " + msg + " status"
                     return
@@ -239,6 +265,11 @@
                 msgelement.firstChild.data = data.status
                 if (data.status.includes("enabled")) {
                     checkbox.checked = true
+                }
+                if (data?.loginstatus === "true") {
+                    document.getElementById("loginform").style.display = "none"
+                    document.getElementById("logoutform").firstElementChild.innerHTML = data?.username
+                    document.getElementById("logoutform").style.display = "block"
                 }
             })
         }
