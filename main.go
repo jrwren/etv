@@ -5,18 +5,23 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"math"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv4"
 
 	"github.com/gorilla/securecookie"
 	"github.com/jrwren/sadv"
@@ -32,6 +37,7 @@ func main() {
 	var hashKey = []byte("")
 	// if block key is nil, then no encryption.
 	// var blockKey = []byte("")
+	go pinger()
 	s = securecookie.New(hashKey, nil)
 	r := http.NewServeMux()
 	r.HandleFunc("/login", login)
@@ -60,7 +66,74 @@ var namedMu sync.Mutex
 var tvTimer *time.Timer   // Timer for disabling TV
 var tvTimerTime time.Time // Time of expected TV disable.
 
+var tvPingOn bool
+
 var s *securecookie.SecureCookie
+
+func pinger() {
+	c, err := icmp.ListenPacket("udp4", "0.0.0.0")
+	if err != nil {
+		log.Print("pinger error listening", err)
+	}
+	defer c.Close()
+
+	ct := time.Tick(5 * time.Second)
+	for range ct {
+		err = c.SetDeadline(time.Now().Add(5 * time.Second))
+		if err != nil {
+			log.Print("pinger couldn't set deadline", err)
+			continue
+		}
+		wm := icmp.Message{
+			Type: ipv4.ICMPTypeEcho, Code: 0,
+			Body: &icmp.Echo{
+				ID: os.Getpid() & 0xffff, Seq: 1,
+				Data: []byte("etv pinging ya"),
+			},
+		}
+		wb, err := wm.Marshal(nil)
+		if err != nil {
+			log.Print("pinger error marshaling", err)
+			continue
+		}
+		ip, err := net.LookupIP("vizio.powerpuff")
+		if err != nil {
+			log.Print("pinger could not lookup ip", err)
+			continue
+		}
+		addr := &net.UDPAddr{IP: ip[0]}
+		if _, err := c.WriteTo(wb, addr); err != nil {
+			tvPingOn = false
+			log.Print("pinger error writing", err)
+			continue
+		}
+
+		rb := make([]byte, 1500)
+		n, peer, err := c.ReadFrom(rb)
+		if err != nil {
+			if !errors.Is(err, os.ErrDeadlineExceeded) {
+				log.Print("pinger error reading", err)
+			}
+			tvPingOn = false
+			continue
+		}
+		rm, err := icmp.ParseMessage(1, rb[:n])
+		if err != nil {
+			log.Print("pinger error parsing", err)
+			continue
+		}
+		switch rm.Type {
+		case ipv4.ICMPTypeEchoReply:
+			if peer.String() != addr.String() {
+				log.Printf("got reflection from %v expecting %v", peer, addr)
+			}
+			tvPingOn = true
+		default:
+			log.Printf("pinger got %+v; want echo reply", rm)
+			tvPingOn = false
+		}
+	}
+}
 
 func acao(f http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -189,6 +262,10 @@ func statusTV(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(l, "vizio") {
 			respj["status"] = "TV(amazon) and Kodi are currently disabled"
 		}
+	}
+	respj["tvpstatus"] = "The TV is off."
+	if tvPingOn {
+		respj["tvpstatus"] = "The TV is on."
 	}
 	// State could be wonky on first run if tvTimeTime IsZero AND tv is enabled.
 	if tvTimerTime.IsZero() && strings.HasSuffix(respj["status"], "enabled") {

@@ -136,6 +136,7 @@
     <div id="response"> </div>
     <ul id="server_control">
         <li>
+            <div id="tvpstatus"> </div>
             <div id="statusTV"> </div>
             <span>enable/add time to the TV</span>
             <label class="switch">
@@ -275,6 +276,9 @@
                     document.getElementById("loginform").style.display = "none"
                     document.getElementById("logoutform").firstElementChild.innerHTML = data?.username
                     document.getElementById("logoutform").style.display = "block"
+                }
+                if (data?.tvpstatus) {
+                    document.getElementById("tvpstatus").innerHTML = data?.tvpstatus
                 }
             })
         }
