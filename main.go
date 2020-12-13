@@ -42,8 +42,8 @@ func main() {
 	r := http.NewServeMux()
 	r.HandleFunc("/login", login)
 	r.HandleFunc("/logout", logout)
-	r.HandleFunc("/etv", doCheck(etv))        //enable TV
-	r.HandleFunc("/statusTV", acao(statusTV)) //status TV
+	r.HandleFunc("/etv", doCheck(etv))        // enable TV
+	r.HandleFunc("/statusTV", acao(statusTV)) // status TV
 	r.HandleFunc("/blockYT", doCheck(lockNamedFile(blockYT)))
 	r.HandleFunc("/enableYT", doCheck(lockNamedFile(enableYT)))
 	r.HandleFunc("/statusYT", acao(statusYT))
@@ -62,9 +62,11 @@ func main() {
 }
 
 // this global means i should extract to a server type soon.
-var namedMu sync.Mutex
-var tvTimer *time.Timer   // Timer for disabling TV
-var tvTimerTime time.Time // Time of expected TV disable.
+var (
+	namedMu     sync.Mutex
+	tvTimer     *time.Timer // Timer for disabling TV
+	tvTimerTime time.Time   // Time of expected TV disable.
+)
 
 var tvPingOn bool
 
@@ -114,6 +116,9 @@ func pinger() {
 			if !errors.Is(err, os.ErrDeadlineExceeded) {
 				log.Print("pinger error reading", err)
 			}
+			if tvPingOn {
+				tvOff()
+			}
 			tvPingOn = false
 			continue
 		}
@@ -127,11 +132,34 @@ func pinger() {
 			if peer.String() != addr.String() {
 				log.Printf("got reflection from %v expecting %v", peer, addr)
 			}
+			if !tvPingOn {
+				tvOn()
+			}
 			tvPingOn = true
 		default:
 			log.Printf("pinger got %+v; want echo reply", rm)
 			tvPingOn = false
 		}
+	}
+}
+
+// tvOn is called when the state of the TV changes from Off to On.
+func tvOn() {
+	now := time.Now()
+	// After 6pm, allow TV when it turns off and disable the timer.
+	if now.Hour() > 18 {
+		log.Print("tv turned on after 6pm, enabling")
+		enableTV(nil)
+		tvTimer.Stop()
+	}
+}
+
+// tvOff is called when the state of the TV changes from On to Off
+func tvOff() {
+	now := time.Now()
+	if now.Hour() > 23 || now.Hour() < 6 {
+		log.Print("tv turned off after 11am, disabling")
+		blockHosts("vizio.powerpuff", "kodi.powerpuff")
 	}
 }
 
@@ -237,9 +265,11 @@ func login(w http.ResponseWriter, r *http.Request) {
 		log.Panic(err) // Won't happen. right?
 	}
 	c := &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    cvalue,
-		Expires:  time.Now().Add(365 * 24 * time.Hour),
+		Name:  sessionCookieName,
+		Value: cvalue,
+		// Expires is deprecated. Use MaxAge.
+		// Expires:  time.Now().Add(365 * 24 * time.Hour),
+		MaxAge:   int((time.Hour * 365 * 24).Seconds()),
 		HttpOnly: true,
 	}
 	http.SetCookie(w, c)
@@ -270,7 +300,7 @@ func statusTV(w http.ResponseWriter, r *http.Request) {
 	// State could be wonky on first run if tvTimeTime IsZero AND tv is enabled.
 	if tvTimerTime.IsZero() && strings.HasSuffix(respj["status"], "enabled") {
 		tvTimerTime = time.Now().Add(time.Hour)
-		//go blockIn(time.Hour, "vizio.powerpuff", "kodi.powerpuff")
+		// go blockIn(time.Hour, "vizio.powerpuff", "kodi.powerpuff")
 		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
 			blockHosts("vizio.powerpuff", "kodi.powerpuff")
 		})
@@ -300,22 +330,9 @@ func etv(w http.ResponseWriter, r *http.Request) {
 			blockHosts("vizio.powerpuff", "kodi.powerpuff")
 		})
 	} else {
-		out, err := exec.Command("iptables", "-D", "INPUT", "-s", "vizio.powerpuff",
-			"-j", "DROP").CombinedOutput()
-		if err != nil {
-			log.Print(err, string(out))
-			http.Error(w, "could not run iptables for TV", http.StatusServiceUnavailable)
-			return
-		}
-		out, err = exec.Command("iptables", "-D", "INPUT", "-s", "kodi.powerpuff",
-			"-j", "DROP").CombinedOutput()
-		if err != nil {
-			log.Print(err, string(out))
-			http.Error(w, "could not run iptables for kodi", http.StatusServiceUnavailable)
-			return
-		}
+		enableTV(w)
 		tvTimerTime = time.Now().Add(time.Hour)
-		//go blockIn(time.Hour, "vizio.powerpuff", "kodi.powerpuff")
+		// go blockIn(time.Hour, "vizio.powerpuff", "kodi.powerpuff")
 		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
 			blockHosts("vizio.powerpuff", "kodi.powerpuff")
 		})
@@ -325,6 +342,27 @@ func etv(w http.ResponseWriter, r *http.Request) {
 	err := json.NewEncoder(w).Encode(respj)
 	if err != nil {
 		log.Print(err)
+		return
+	}
+}
+
+func enableTV(w http.ResponseWriter) {
+	out, err := exec.Command("iptables", "-D", "INPUT", "-s", "vizio.powerpuff",
+		"-j", "DROP").CombinedOutput()
+	if err != nil {
+		log.Print(err, string(out))
+		if w != nil {
+			http.Error(w, "could not run iptables for TV", http.StatusServiceUnavailable)
+		}
+		return
+	}
+	out, err = exec.Command("iptables", "-D", "INPUT", "-s", "kodi.powerpuff",
+		"-j", "DROP").CombinedOutput()
+	if err != nil {
+		log.Print(err, string(out))
+		if w != nil {
+			http.Error(w, "could not run iptables for kodi", http.StatusServiceUnavailable)
+		}
 		return
 	}
 }
@@ -461,7 +499,7 @@ func enableX(w http.ResponseWriter, r *http.Request, key string) {
 }
 
 func statusFB(w http.ResponseWriter, r *http.Request) {
-	//w.Header().Add("Access-Control-Allow-Origin", "http://delays.powerpuff")
+	// w.Header().Add("Access-Control-Allow-Origin", "http://delays.powerpuff")
 	statusX(w, r, "Facebook")
 }
 
