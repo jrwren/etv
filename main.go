@@ -29,6 +29,7 @@ import (
 
 const (
 	sessionCookieName = "session"
+	tvHostname = "lgtv.powerpuff"
 )
 
 func main() {
@@ -98,7 +99,7 @@ func pinger() {
 			log.Print("pinger error marshaling", err)
 			continue
 		}
-		ip, err := net.LookupIP("vizio.powerpuff")
+		ip, err := net.LookupIP(tvHostname)
 		if err != nil {
 			log.Print("pinger could not lookup ip", err)
 			continue
@@ -159,7 +160,7 @@ func tvOff() {
 	now := time.Now()
 	if now.Hour() > 23 || now.Hour() < 6 {
 		log.Print("tv turned off after 11am, disabling")
-		blockHosts("vizio.powerpuff", "kodi.powerpuff")
+		blockHosts(tvHostname, "kodi.powerpuff")
 	}
 }
 
@@ -289,7 +290,7 @@ func statusTV(w http.ResponseWriter, r *http.Request) {
 		respj["status"] += " for " + time.Until(tvTimerTime).String()
 	}
 	for _, l := range strings.Split(string(out), "\n") {
-		if strings.Contains(l, "vizio") {
+		if strings.Contains(l, tvHostname) {
 			respj["status"] = "TV(amazon) and Kodi are currently disabled"
 		}
 	}
@@ -300,9 +301,8 @@ func statusTV(w http.ResponseWriter, r *http.Request) {
 	// State could be wonky on first run if tvTimeTime IsZero AND tv is enabled.
 	if tvTimerTime.IsZero() && strings.HasSuffix(respj["status"], "enabled") {
 		tvTimerTime = time.Now().Add(time.Hour)
-		// go blockIn(time.Hour, "vizio.powerpuff", "kodi.powerpuff")
 		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
-			blockHosts("vizio.powerpuff", "kodi.powerpuff")
+			blockHosts(tvHostname, "kodi.powerpuff")
 		})
 	}
 	val, err := getSecureSessionCookieValue(r)
@@ -327,14 +327,13 @@ func etv(w http.ResponseWriter, r *http.Request) {
 			<-tvTimer.C
 		}
 		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
-			blockHosts("vizio.powerpuff", "kodi.powerpuff")
+			blockHosts(tvHostname, "kodi.powerpuff")
 		})
 	} else {
 		enableTV(w)
 		tvTimerTime = time.Now().Add(time.Hour)
-		// go blockIn(time.Hour, "vizio.powerpuff", "kodi.powerpuff")
 		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
-			blockHosts("vizio.powerpuff", "kodi.powerpuff")
+			blockHosts(tvHostname, "kodi.powerpuff")
 		})
 	}
 	respj := make(map[string]string)
@@ -347,7 +346,7 @@ func etv(w http.ResponseWriter, r *http.Request) {
 }
 
 func enableTV(w http.ResponseWriter) {
-	out, err := exec.Command("iptables", "-D", "INPUT", "-s", "vizio.powerpuff",
+	out, err := exec.Command("iptables", "-D", "INPUT", "-s", tvHostname,
 		"-j", "DROP").CombinedOutput()
 	if err != nil {
 		log.Print(err, string(out))
