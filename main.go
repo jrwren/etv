@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -29,7 +30,7 @@ import (
 
 const (
 	sessionCookieName = "session"
-	tvHostname = "lgtv.powerpuff"
+	tvHostname        = "lgtv.powerpuff"
 )
 
 func main() {
@@ -38,6 +39,8 @@ func main() {
 	var hashKey = []byte("")
 	// if block key is nil, then no encryption.
 	// var blockKey = []byte("")
+	flag.BoolVar(&manageTV, "managetv", false, "manage the TV")
+	flag.Parse()
 	go pinger()
 	s = securecookie.New(hashKey, nil)
 	r := http.NewServeMux()
@@ -67,11 +70,14 @@ var (
 	namedMu     sync.Mutex
 	tvTimer     *time.Timer // Timer for disabling TV
 	tvTimerTime time.Time   // Time of expected TV disable.
+
+	// tvPingOn is true if tv is successfully pinged and false if ping fails.
+	tvPingOn bool
+
+	manageTV bool
+
+	s *securecookie.SecureCookie
 )
-
-var tvPingOn bool
-
-var s *securecookie.SecureCookie
 
 func pinger() {
 	c, err := icmp.ListenPacket("udp4", "0.0.0.0")
@@ -118,9 +124,9 @@ func pinger() {
 				log.Print("pinger error reading", err)
 			}
 			if tvPingOn {
+				tvPingOn = false
 				tvOff()
 			}
-			tvPingOn = false
 			continue
 		}
 		rm, err := icmp.ParseMessage(1, rb[:n])
@@ -134,9 +140,9 @@ func pinger() {
 				log.Printf("got reflection from %v expecting %v", peer, addr)
 			}
 			if !tvPingOn {
+				tvPingOn = true
 				tvOn()
 			}
-			tvPingOn = true
 		default:
 			log.Printf("pinger got %+v; want echo reply", rm)
 			tvPingOn = false
@@ -148,7 +154,7 @@ func pinger() {
 func tvOn() {
 	now := time.Now()
 	// After 6pm, allow TV when it turns off and disable the timer.
-	if now.Hour() > 18 {
+	if manageTV && now.Hour() > 18 {
 		log.Print("tv turned on after 6pm, enabling")
 		enableTV(nil)
 		tvTimer.Stop()
@@ -158,8 +164,8 @@ func tvOn() {
 // tvOff is called when the state of the TV changes from On to Off
 func tvOff() {
 	now := time.Now()
-	if now.Hour() > 23 || now.Hour() < 6 {
-		log.Print("tv turned off after 11am, disabling")
+	if manageTV && (now.Hour() > 23 || now.Hour() < 6) {
+		log.Print("tv turned off after 11pm, disabling")
 		blockHosts(tvHostname, "kodi.powerpuff")
 	}
 }
@@ -299,12 +305,12 @@ func statusTV(w http.ResponseWriter, r *http.Request) {
 		respj["tvpstatus"] = "The TV is on."
 	}
 	// State could be wonky on first run if tvTimeTime IsZero AND tv is enabled.
-	if tvTimerTime.IsZero() && strings.HasSuffix(respj["status"], "enabled") {
-		tvTimerTime = time.Now().Add(time.Hour)
-		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
-			blockHosts(tvHostname, "kodi.powerpuff")
-		})
-	}
+	// if tvTimerTime.IsZero() && strings.HasSuffix(respj["status"], "enabled") {
+	// 	tvTimerTime = time.Now().Add(time.Hour)
+	// 	tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
+	// 		blockHosts(tvHostname, "kodi.powerpuff")
+	// 	})
+	// }
 	val, err := getSecureSessionCookieValue(r)
 	if err == nil {
 		s := strings.Split(val, ":")
@@ -320,6 +326,16 @@ func statusTV(w http.ResponseWriter, r *http.Request) {
 }
 
 func etv(w http.ResponseWriter, r *http.Request) {
+	if !manageTV {
+		respj := make(map[string]string)
+		respj["message"] = "TV and Kodi management are disabled"
+		err := json.NewEncoder(w).Encode(respj)
+		if err != nil {
+			log.Print(err)
+			return
+		}
+		return
+	}
 	if !tvTimerTime.IsZero() {
 		// TV is already enabled, just add time.
 		tvTimerTime = tvTimerTime.Add(15 * time.Minute)
@@ -328,12 +344,14 @@ func etv(w http.ResponseWriter, r *http.Request) {
 		}
 		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
 			blockHosts(tvHostname, "kodi.powerpuff")
+			tvTimerTime = time.Time{} // Zero it until the next enable.
 		})
 	} else {
 		enableTV(w)
 		tvTimerTime = time.Now().Add(time.Hour)
 		tvTimer = time.AfterFunc(time.Until(tvTimerTime), func() {
 			blockHosts(tvHostname, "kodi.powerpuff")
+			tvTimerTime = time.Time{} // Zero it until the next enable.
 		})
 	}
 	respj := make(map[string]string)
@@ -368,7 +386,6 @@ func enableTV(w http.ResponseWriter) {
 
 func blockHosts(hosts ...string) {
 	for _, host := range hosts {
-		tvTimerTime = time.Time{} // Zero it until the next enable.
 		out, err := exec.Command("iptables", "-I", "INPUT", "9", "-s", host,
 			"-j", "DROP").CombinedOutput()
 		if err != nil {
