@@ -10,11 +10,27 @@
 
         body {
             font-family: Ubuntu, Arial, "libra sans", sans-serif;
-            font-family: 'Palatino';
+            /*font-family: 'Palatino';*/
             text-rendering: optimizeLegibility;
             margin: auto;
             max-width: 70em;
             padding: 2em;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: black;
+                color: white;
+            }
+            a {
+                color: rgb(var(--color-link));
+            }
+            a:hover {
+                filter: brightness(0.7);
+            }
+            :root {
+                --color-link: 128, 128, 255;
+            }
         }
 
         ul {
@@ -23,7 +39,6 @@
         }
 
         ul#server_control li {
-            font-family: 'Courier New', Courier, monospace;
             width: 20em;
             display: inline-block;
             margin: 1em;
@@ -132,6 +147,7 @@
         <li><a href="http://delays.powerpuff:4533/">navidrome</a>
         <li><a href="http://delays.powerpuff:8053/">ISC Bind 9 Configuration and Statistics</a>
         <li><a href="https://nc.xmtp.net/">nextcloud</a>
+        <li><a href="https://cisco.webex.com/meet/jawren">jay's webex</a></li>
     </ul>
     <h1> server filter controls</h1>
     <div id="response"> </div>
