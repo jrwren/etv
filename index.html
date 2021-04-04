@@ -194,24 +194,35 @@
                 <span class="slider round"></span>
             </label>
         </li>
+        <li>
+            <div id="downloadToTV"> </div>
+            <div>
+            <label>download to kodi TV</label>
+                <input id="downloadToTVText" placeholder="url" type="textbox">
+                <button id="downloadToTVButton">download</button>
+            </div>
+        </li>
     </ul>
     <script>
         "use strict";
 
         const etv = document.getElementById("checkboxTV")
-        const statusTV = document.getElementById("statusTV")//
+        const statusTV = document.getElementById("statusTV")
 
         const switchYT = document.getElementById("checkboxYT")
-        const statusYT = document.getElementById("statusYT")//
+        const statusYT = document.getElementById("statusYT")
 
         const switchFB = document.getElementById("checkboxFB")
-        const statusFB = document.getElementById("statusFB")//
+        const statusFB = document.getElementById("statusFB")
 
         const switchBeacons = document.getElementById("checkboxBeacons")
-        const statusBeacons = document.getElementById("statusBeacons")//
+        const statusBeacons = document.getElementById("statusBeacons")
 
         const switchPorn = document.getElementById("checkboxPorn")
-        const statusPorn = document.getElementById("statusPorn")//
+        const statusPorn = document.getElementById("statusPorn")
+
+        const downloadToTVText = document.getElementById("downloadToTVText")
+        const downloadToTVButton = document.getElementById("downloadToTVButton")
 
         const resH = document.getElementById("response")
 
@@ -237,8 +248,8 @@
 
         const server = "http://delays.powerpuff:9620/"
 
-        function hit(path) {
-            const postbody = { "nope": "nothing" }
+        function hit(path, body) {
+            const postbody = body ?? { "nope": "nothing" }
             fetch(server + path, { "method": "POST", credentials: "include", "body": JSON.stringify(postbody) })
                 .then(function (response) {
                     if (!response.ok) {
@@ -248,7 +259,7 @@
                     return response.json()
                 }).then(data => {
                     console.log(data)
-                    resH.firstChild.data = data.message
+                    resH.firstChild.data = data.message ?? data.status
                     updateYTStatus()
                     updateFBStatus()
                     updateBeaconStatus()
@@ -299,6 +310,12 @@
                 }
             })
         }
+
+downloadToTVButton.onclick = function() {
+    if (downloadToTVText.value) {
+        hit("download", {"target":"tv", "url":downloadToTVText.value})
+    }
+};
 
         updateTVStatus()
         updateYTStatus()

@@ -31,6 +31,8 @@ import (
 const (
 	sessionCookieName = "session"
 	tvHostname        = "lgtv.powerpuff"
+	// youtubeDLPath can be "youtube-dl" if it is in $PATH.
+	youtubeDLPath = "/home/jrwren/bin/youtube-dl"
 )
 
 func main() {
@@ -57,10 +59,10 @@ func main() {
 	r.HandleFunc("/blockBeacons", doCheck(lockNamedFile(blockBeacons)))
 	r.HandleFunc("/enableBeacons", doCheck(lockNamedFile(enableBeacons)))
 	r.HandleFunc("/statusBeacons", acao(statusBeacons))
-
 	r.HandleFunc("/blockPorn", doCheck(lockNamedFile(blockPorn)))
 	r.HandleFunc("/enablePorn", doCheck(lockNamedFile(enablePorn)))
 	r.HandleFunc("/statusPorn", acao(statusPorn))
+	r.HandleFunc("/download", doCheck(download))
 	log.Fatal(http.ListenAndServe(":9620",
 		NoDateForSystemDHandler(os.Stdout, r)))
 }
@@ -213,6 +215,8 @@ func doCheck(f http.HandlerFunc) http.HandlerFunc {
 		acao(emptyHandlerFunc())(w, r)
 		_, err := getSecureSessionCookieValue(r)
 		if err != nil {
+			http.Error(w, http.StatusText(http.StatusForbidden),
+				http.StatusForbidden)
 			return
 		}
 		// At this point, don't even care what the cookie value is, since we
@@ -540,13 +544,50 @@ func statusX(w http.ResponseWriter, r *http.Request, key string) {
 			on = true
 		}
 	}
+	writeStatus(w, status)
+}
+
+func writeStatus(w io.Writer, status string) {
 	respj := make(map[string]string)
 	respj["status"] = status
-	err = json.NewEncoder(w).Encode(respj)
+	err := json.NewEncoder(w).Encode(respj)
 	if err != nil {
 		log.Print(err)
 		return
 	}
+}
+
+func download(w http.ResponseWriter, r *http.Request) {
+	req := struct {
+		Target string
+		URL    string
+	}{}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		log.Print(err)
+		http.Error(w, http.StatusText(http.StatusBadRequest),
+			http.StatusBadRequest)
+		return
+	}
+	var targetDir string
+	switch req.Target {
+	case "tv":
+		targetDir = "/d/tv/"
+	case "movie":
+		targetDir = "/d/movies/"
+	default:
+		http.Error(w, http.StatusText(http.StatusBadRequest),
+			http.StatusBadRequest)
+	}
+	ctx := r.Context()
+	cmd := exec.CommandContext(ctx, youtubeDLPath, req.URL)
+	cmd.Dir = targetDir
+	if stdoutStderr, err := cmd.CombinedOutput(); err != nil {
+		writeStatus(w, err.Error()+" "+string(stdoutStderr))
+		log.Print("error downloading ", req.URL, err, string(stdoutStderr))
+		return
+	}
+	writeStatus(w, req.URL+" downloaded")
 }
 
 // NoDateForSystemDHandler is a logging handler which writes most fields of
