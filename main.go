@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"math"
@@ -38,7 +40,7 @@ const (
 func main() {
 	log.SetFlags(log.Lshortfile)
 	// Sure you could use GenerateKey or you could use petname -words=6 😀
-	var hashKey = []byte("")
+	hashKey := []byte("unfocusedly-sporadically-determinedly-inordinately-kind-Nikolas")
 	// if block key is nil, then no encryption.
 	// var blockKey = []byte("")
 	flag.BoolVar(&manageTV, "managetv", false, "manage the TV")
@@ -63,6 +65,11 @@ func main() {
 	r.HandleFunc("/enablePorn", doCheck(lockNamedFile(enablePorn)))
 	r.HandleFunc("/statusPorn", acao(statusPorn))
 	r.HandleFunc("/download", doCheck(download))
+	fs, err := fs.Sub(embededHTML, ".")
+	if err != nil {
+		log.Fatal(err)
+	}
+	r.Handle("/", http.FileServer(http.FS(fs)))
 	log.Fatal(http.ListenAndServe(":9620",
 		NoDateForSystemDHandler(os.Stdout, r)))
 }
@@ -79,6 +86,8 @@ var (
 	manageTV bool
 
 	s *securecookie.SecureCookie
+	//go:embed *.html
+	embededHTML embed.FS
 )
 
 func pinger() {

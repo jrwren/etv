@@ -1,6 +1,6 @@
 module etv
 
-go 1.15
+go 1.16
 
 require (
 	github.com/gorilla/securecookie v1.1.1
