@@ -617,6 +617,10 @@ func download(w http.ResponseWriter, r *http.Request) {
 //   %v:%p %h %u \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i
 func NoDateForSystemDHandler(out io.Writer, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.RequestURI == "/metrics" {
+			h.ServeHTTP(w, r)
+			return
+		}
 		host := r.Host
 		user := "-"
 		auth := r.Header.Get("Authorization")
