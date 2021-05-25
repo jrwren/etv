@@ -28,6 +28,7 @@ import (
 
 	"github.com/gorilla/securecookie"
 	"github.com/jrwren/sadv"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -65,6 +66,7 @@ func main() {
 	r.HandleFunc("/enablePorn", doCheck(lockNamedFile(enablePorn)))
 	r.HandleFunc("/statusPorn", acao(statusPorn))
 	r.HandleFunc("/download", doCheck(download))
+	r.Handle("/metrics", promhttp.Handler())
 	fs, err := fs.Sub(embededHTML, ".")
 	if err != nil {
 		log.Fatal(err)
@@ -458,18 +460,22 @@ func commentFileBetween(filename, start, stop string, uncomment bool) error {
 
 func blockYT(w http.ResponseWriter, r *http.Request) {
 	blockX(w, r, "YouTube")
+	disableMetric.WithLabelValues("youtube").Add(1)
 }
 
 func blockFB(w http.ResponseWriter, r *http.Request) {
 	blockX(w, r, "Facebook")
+	disableMetric.WithLabelValues("facebook").Add(1)
 }
 
 func blockBeacons(w http.ResponseWriter, r *http.Request) {
 	blockX(w, r, "Beacons")
+	disableMetric.WithLabelValues("beacons").Add(1)
 }
 
 func blockPorn(w http.ResponseWriter, r *http.Request) {
 	blockX(w, r, "Porn")
+	disableMetric.WithLabelValues("porn").Add(1)
 }
 
 func blockX(w http.ResponseWriter, r *http.Request, key string) {
@@ -501,14 +507,17 @@ func editX(w http.ResponseWriter, r *http.Request, key string, uncomment bool, m
 
 func enableYT(w http.ResponseWriter, r *http.Request) {
 	enableX(w, r, "YouTube")
+	enableMetric.WithLabelValues("youtube").Add(1)
 }
 
 func enableFB(w http.ResponseWriter, r *http.Request) {
 	enableX(w, r, "Facebook")
+	enableMetric.WithLabelValues("facebook").Add(1)
 }
 
 func enableBeacons(w http.ResponseWriter, r *http.Request) {
 	enableX(w, r, "Beacons")
+	enableMetric.WithLabelValues("beacons").Add(1)
 }
 
 func statusBeacons(w http.ResponseWriter, r *http.Request) {
@@ -517,6 +526,7 @@ func statusBeacons(w http.ResponseWriter, r *http.Request) {
 
 func enablePorn(w http.ResponseWriter, r *http.Request) {
 	enableX(w, r, "Porn")
+	enableMetric.WithLabelValues("porn").Add(1)
 }
 
 func statusPorn(w http.ResponseWriter, r *http.Request) {
