@@ -5,6 +5,8 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#4285f4" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
     <style type="text/css">
         @charset "UTF-8";
 
@@ -173,6 +175,14 @@
             </label>
         </li>
         <li>
+            <div id="statusLilly"> </div>
+            <span>enable/disable Lilly's Phone</span>
+            <label class="switch">
+                <input id="checkboxLilly" type="checkbox">
+                <span class="slider round"></span>
+            </label>
+        </li>
+        <li>
             <div id="statusFB"> </div>
             <span>enable/disable Facebook</span>
             <label class="switch">
@@ -218,6 +228,9 @@
         const switchFB = document.getElementById("checkboxFB")
         const statusFB = document.getElementById("statusFB")
 
+        const switchLilly = document.getElementById("checkboxLilly")
+        const statusLilly = document.getElementById("statusLilly")
+
         const switchBeacons = document.getElementById("checkboxBeacons")
         const statusBeacons = document.getElementById("statusBeacons")
 
@@ -236,6 +249,7 @@
 
         switchYT.onclick = () => dependOnCheck(switchYT, "YT")
         switchFB.onclick = () => dependOnCheck(switchFB, "FB")
+        switchLilly.onclick = () => dependOnCheck(switchLilly, "Lilly")
         switchBeacons.onclick = () => dependOnCheck(switchBeacons, "Beacons")
         switchPorn.onclick = () => dependOnCheck(switchPorn, "Porn")
 
@@ -265,6 +279,7 @@
                     resH.firstChild.data = data.message ?? data.status
                     updateYTStatus()
                     updateFBStatus()
+                    updateLillyStatus()
                     updateBeaconStatus()
                     updatePornStatus()
                     updateTVStatus()
@@ -277,6 +292,10 @@
 
         function updateFBStatus() {
             updateStatus("statusFB", statusFB, "Facebook", switchFB)
+        }
+
+        function updateLillyStatus() {
+            updateStatus("statusLilly", statusLilly, "Lilly", switchLilly)
         }
 
         function updateBeaconStatus() {
@@ -323,6 +342,7 @@ downloadToTVButton.onclick = function() {
         updateTVStatus()
         updateYTStatus()
         updateFBStatus()
+        updateLillyStatus()
         updateBeaconStatus()
         updatePornStatus()
     </script>

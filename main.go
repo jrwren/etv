@@ -56,6 +56,9 @@ func main() {
 	r.HandleFunc("/blockYT", doCheck(lockNamedFile(blockYT)))
 	r.HandleFunc("/enableYT", doCheck(lockNamedFile(enableYT)))
 	r.HandleFunc("/statusYT", acao(statusYT))
+	r.HandleFunc("/blockLilly", doCheck(lockNamedFile(blockLilly)))
+	r.HandleFunc("/enableLilly", doCheck(lockNamedFile(enableLilly)))
+	r.HandleFunc("/statusLilly", acao(statusLilly))
 	r.HandleFunc("/blockFB", doCheck(lockNamedFile(blockFB)))
 	r.HandleFunc("/enableFB", doCheck(lockNamedFile(enableFB)))
 	r.HandleFunc("/statusFB", acao(statusFB))
@@ -275,6 +278,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Println(err)
 		}
+		http.Error(w, "could not run iptables for TV", http.StatusForbidden)
 		return
 	}
 	i, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
@@ -399,15 +403,45 @@ func enableTV(w http.ResponseWriter) {
 	}
 }
 
-func blockHosts(hosts ...string) {
+func blockHosts(hosts ...string) error {
+	var errs []error
 	for _, host := range hosts {
 		out, err := exec.Command("iptables", "-I", "INPUT", "9", "-s", host,
 			"-j", "DROP").CombinedOutput()
 		if err != nil {
 			log.Print(err, string(out))
-			return
+			errs = append(errs, err)
 		}
 	}
+	return joined(errs)
+}
+
+func unblockHosts(hosts ...string) error {
+	var errs []error
+	for _, host := range hosts {
+		out, err := exec.Command("iptables", "-D", "INPUT", "-s", host,
+			"-j", "DROP").CombinedOutput()
+		if err != nil {
+			log.Print(err, string(out))
+			errs = append(errs, err)
+		}
+	}
+	return joined(errs)
+}
+
+func joined(errs []error) error {
+	if len(errs) == 0 {
+		return nil
+	}
+	if len(errs) == 1 {
+		return errs[0]
+	}
+	// This is super stupid, but enough for our use.
+	var err error
+	for i := range errs {
+		err = fmt.Errorf("%s:%w", err, errs[i])
+	}
+	return err
 }
 
 const namedFile = "/etc/bind/named.conf.local"
@@ -456,6 +490,32 @@ func commentFileBetween(filename, start, stop string, uncomment bool) error {
 		}
 	}
 	return f.Close()
+}
+
+func statusLilly(w http.ResponseWriter, r *http.Request) {
+	out, err := exec.Command("iptables", "-L", "INPUT").CombinedOutput()
+	if err != nil {
+		log.Print(err, string(out))
+		http.Error(w, "could not run iptables for TV", http.StatusServiceUnavailable)
+		return
+	}
+	status := "Lilly's Phone is currently enabled"
+	for _, l := range strings.Split(string(out), "\n") {
+		if strings.Contains(l, "lilly-iphone.powerpuff") {
+			status = "Lilly's Phone is currently disabled"
+		}
+	}
+	writeStatus(w, status)
+}
+
+func blockLilly(w http.ResponseWriter, r *http.Request) {
+	blockHosts("lilly-iphone.powerpuff")
+	disableMetric.WithLabelValues("Lilly").Add(1)
+}
+
+func enableLilly(w http.ResponseWriter, r *http.Request) {
+	unblockHosts("lilly-iphone.powerpuff")
+	enableMetric.WithLabelValues("Lilly").Add(1)
 }
 
 func blockYT(w http.ResponseWriter, r *http.Request) {
