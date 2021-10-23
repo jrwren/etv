@@ -69,6 +69,7 @@ func main() {
 	r.HandleFunc("/enablePorn", doCheck(lockNamedFile(enablePorn)))
 	r.HandleFunc("/statusPorn", acao(statusPorn))
 	r.HandleFunc("/download", doCheck(download))
+	r.HandleFunc("/recent", acao(recent))
 	r.Handle("/metrics", promhttp.Handler())
 	fs, err := fs.Sub(embededHTML, ".")
 	if err != nil {
@@ -403,45 +404,24 @@ func enableTV(w http.ResponseWriter) {
 	}
 }
 
-func blockHosts(hosts ...string) error {
-	var errs []error
+func blockHosts(hosts ...string) {
 	for _, host := range hosts {
 		out, err := exec.Command("iptables", "-I", "INPUT", "9", "-s", host,
 			"-j", "DROP").CombinedOutput()
 		if err != nil {
 			log.Print(err, string(out))
-			errs = append(errs, err)
 		}
 	}
-	return joined(errs)
 }
 
-func unblockHosts(hosts ...string) error {
-	var errs []error
+func unblockHosts(hosts ...string) {
 	for _, host := range hosts {
 		out, err := exec.Command("iptables", "-D", "INPUT", "-s", host,
 			"-j", "DROP").CombinedOutput()
 		if err != nil {
 			log.Print(err, string(out))
-			errs = append(errs, err)
 		}
 	}
-	return joined(errs)
-}
-
-func joined(errs []error) error {
-	if len(errs) == 0 {
-		return nil
-	}
-	if len(errs) == 1 {
-		return errs[0]
-	}
-	// This is super stupid, but enough for our use.
-	var err error
-	for i := range errs {
-		err = fmt.Errorf("%s:%w", err, errs[i])
-	}
-	return err
 }
 
 const namedFile = "/etc/bind/named.conf.local"
@@ -510,11 +490,13 @@ func statusLilly(w http.ResponseWriter, r *http.Request) {
 
 func blockLilly(w http.ResponseWriter, r *http.Request) {
 	blockHosts("lilly-iphone.powerpuff")
+	blockHosts("lilly-iphone2.powerpuff")
 	disableMetric.WithLabelValues("Lilly").Add(1)
 }
 
 func enableLilly(w http.ResponseWriter, r *http.Request) {
 	unblockHosts("lilly-iphone.powerpuff")
+	unblockHosts("lilly-iphone2.powerpuff")
 	enableMetric.WithLabelValues("Lilly").Add(1)
 }
 
@@ -632,7 +614,6 @@ func writeStatus(w io.Writer, status string) {
 	err := json.NewEncoder(w).Encode(respj)
 	if err != nil {
 		log.Print(err)
-		return
 	}
 }
 
@@ -667,6 +648,30 @@ func download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeStatus(w, req.URL+" downloaded")
+}
+
+func recent(w http.ResponseWriter, r *http.Request) {
+	// TODO: list and stat the files instead of fork/exec
+	respj := make(map[string][]string)
+	respj["tv"] = tailLatestFiles("/d/tv", 20)
+	respj["movies"] = tailLatestFiles("/d/movies", 20)
+	err := json.NewEncoder(w).Encode(respj)
+	if err != nil {
+		log.Print(err)
+	}
+}
+
+func tailLatestFiles(path string, n int) []string {
+	out, err := exec.Command("ls", "-alrt", path).CombinedOutput()
+	if err != nil {
+		return nil
+	}
+	lines := strings.Split(string(out), "\n")
+	l := len(lines)
+	if l < n {
+		n = l
+	}
+	return lines[l-n : l]
 }
 
 // NoDateForSystemDHandler is a logging handler which writes most fields of
