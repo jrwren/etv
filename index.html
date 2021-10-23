@@ -117,6 +117,12 @@
             float: right;
             display: none;
         }
+        .filelist {
+            font-variant-numeric: tabular-nums lining-nums;
+            white-space: pre;
+            text-transform: full-width;
+            font-family: "JetBrains Mono", "Ubuntu Mono", "Monaco", "Menlo", "Consolas", "Palatino", monospace;
+        }
     </style>
 
 </head>
@@ -216,6 +222,14 @@
             </div>
         </li>
     </ul>
+    <div>
+        <h2>recent tv</h2>
+        <div id="recenttv"></div>
+    </div>
+    <div>
+        <h2>recent movies</h2>
+        <div id="recentmovies"></div>
+    </div>
     <script>
         "use strict";
 
@@ -241,6 +255,8 @@
         const downloadToTVButton = document.getElementById("downloadToTVButton")
 
         const resH = document.getElementById("response")
+        const recenttv = document.getElementById("recenttv")
+        const recentmovies = document.getElementById("recentmovies")
 
         //make etv.onclick like below
         etv.onclick = function () {
@@ -330,14 +346,37 @@
                 if (data?.tvpstatus) {
                     document.getElementById("tvpstatus").innerHTML = data?.tvpstatus
                 }
-            })
+            }).catch(reason => { console.log(reason) })
         }
 
-downloadToTVButton.onclick = function() {
-    if (downloadToTVText.value) {
-        hit("download", {"target":"tv", "url":downloadToTVText.value})
-    }
-};
+        downloadToTVButton.onclick = function() {
+            if (downloadToTVText.value) {
+                hit("download", {"target":"tv", "url":downloadToTVText.value})
+            }
+        }
+
+        let updateList = function(list, element) {
+            let ol = document.createElement("ol")
+            for (var i = 0; i < list.length; i++) {
+                var li = document.createElement("li");
+                li.appendChild(document.createTextNode(list[i]));
+                li.setAttribute("class", "filelist")
+                ol.appendChild(li)
+            }
+            element.appendChild(ol)
+        }
+        let getRecentTVAndMovies = function() {
+            fetch(server+'recent').then((resp)=> {
+                if (!resp.ok) {
+                    console.log("OH NO! ", resp)
+                }
+                return resp.json()
+            }).then(data => {
+                // loop through data.tv and data.movies and create ol with li
+                updateList(data.tv, recenttv)
+                updateList(data.movies, recentmovies)
+            }).catch(reason => { console.log(reason) })
+        }
 
         updateTVStatus()
         updateYTStatus()
@@ -345,6 +384,8 @@ downloadToTVButton.onclick = function() {
         updateLillyStatus()
         updateBeaconStatus()
         updatePornStatus()
+
+        getRecentTVAndMovies()
     </script>
 </body>
 
