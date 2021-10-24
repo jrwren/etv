@@ -655,6 +655,7 @@ func recent(w http.ResponseWriter, r *http.Request) {
 	respj := make(map[string][]string)
 	respj["tv"] = tailLatestFiles("/d/tv", 20)
 	respj["movies"] = tailLatestFiles("/d/movies", 20)
+	respj["dns"] = tailquerylog(100)
 	err := json.NewEncoder(w).Encode(respj)
 	if err != nil {
 		log.Print(err)
@@ -662,16 +663,29 @@ func recent(w http.ResponseWriter, r *http.Request) {
 }
 
 func tailLatestFiles(path string, n int) []string {
-	out, err := exec.Command("ls", "-alrt", path).CombinedOutput()
+	return execCommandGetLines(n, "ls", "-alrt", path)
+}
+
+func execCommandGetLines(n int, name string, arg ...string) []string {
+	out, err := exec.Command(name, arg...).CombinedOutput()
 	if err != nil {
 		return nil
 	}
 	lines := strings.Split(string(out), "\n")
 	l := len(lines)
+	if lines[l-1] == "" {
+		lines = lines[:l-1]
+		l--
+	}
 	if l < n {
 		n = l
 	}
 	return lines[l-n : l]
+}
+
+func tailquerylog(n int) []string {
+	//grep -vE '172.17.0.[235]#|192.168.15.(101|156)#|time-ios|apple-dns.net|itunes.apple.com|communities.apple.com' /var/log/named/query | tail -100
+	return execCommandGetLines(n, "bash", "-c", " grep -vE '172.17.0.[235]#|192.168.15.(101|156)#|time-ios|apple-dns.net|itunes.apple.com|communities.apple.com' /var/log/named/query | tail -100")
 }
 
 // NoDateForSystemDHandler is a logging handler which writes most fields of
