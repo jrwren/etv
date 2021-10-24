@@ -27,6 +27,7 @@ import (
 	"golang.org/x/net/ipv4"
 
 	"github.com/gorilla/securecookie"
+	sysdwatchdog "github.com/iguanesolutions/go-systemd/v5/notify/watchdog"
 	"github.com/jrwren/sadv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -76,8 +77,50 @@ func main() {
 		log.Fatal(err)
 	}
 	r.Handle("/", http.FileServer(http.FS(fs)))
+
+	watchdog, err := sysdwatchdog.New()
+	if err != nil {
+		log.Printf("failed to initialize systemd watchdog controller: %v\n", err)
+	}
+
+	if watchdog != nil {
+		// Then start a watcher worker
+		go func() {
+			ticker := watchdog.NewTicker()
+			defer ticker.Stop()
+			for {
+				select {
+				// Ticker chan
+				case <-ticker.C:
+					// Check if something wrong, if not send heartbeat
+					if healthOK() {
+						if err = watchdog.SendHeartbeat(); err != nil {
+							log.Printf("failed to send systemd watchdog heartbeat: %v\n", err)
+						}
+					}
+					// Some stop signal chan
+					// case <-stopSig:
+					// 	return
+				}
+			}
+		}()
+	}
+
 	log.Fatal(http.ListenAndServe(":9620",
 		NoDateForSystemDHandler(os.Stdout, r)))
+}
+
+func healthOK() bool {
+	resp, err := http.Get("http://localhost:9620")
+	if err != nil {
+		log.Print("error with health check", err)
+		return false
+	}
+	if resp.StatusCode != 200 {
+		log.Print("error with health check not 200", resp.StatusCode)
+		return false
+	}
+	return true
 }
 
 // this global means i should extract to a server type soon.

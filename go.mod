@@ -13,7 +13,9 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.18.0 // indirect
 	github.com/prometheus/procfs v0.6.0 // indirect
-	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
-	golang.org/x/sys v0.0.0-20210309074719-68d13333faf2 // indirect
+	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
+	golang.org/x/sys v0.0.0-20210423082822-04245dca01da // indirect
 	google.golang.org/protobuf v1.23.0 // indirect
 )
+
+require github.com/iguanesolutions/go-systemd/v5 v5.1.0 // indirect
