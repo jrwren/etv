@@ -88,19 +88,12 @@ func main() {
 		go func() {
 			ticker := watchdog.NewTicker()
 			defer ticker.Stop()
-			for {
-				select {
-				// Ticker chan
-				case <-ticker.C:
-					// Check if something wrong, if not send heartbeat
-					if healthOK() {
-						if err = watchdog.SendHeartbeat(); err != nil {
-							log.Printf("failed to send systemd watchdog heartbeat: %v\n", err)
-						}
+			for range ticker.C {
+				// Check if something wrong, if not send heartbeat
+				if healthOK() {
+					if err = watchdog.SendHeartbeat(); err != nil {
+						log.Printf("failed to send systemd watchdog heartbeat: %v\n", err)
 					}
-					// Some stop signal chan
-					// case <-stopSig:
-					// 	return
 				}
 			}
 		}()
@@ -711,7 +704,7 @@ func tailLatestFiles(path string, n int) []string {
 }
 
 func execCommandGetLines(n int, dir, name string, arg ...string) []string {
-	cmd:=exec.Command(name, arg...)
+	cmd := exec.Command(name, arg...)
 	if dir != "" {
 		cmd.Dir = dir
 	}
@@ -733,32 +726,33 @@ func execCommandGetLines(n int, dir, name string, arg ...string) []string {
 
 func tailquerylog(n int) []string {
 	//grep -vE '172.17.0.[235]#|192.168.15.(101|156)#|time-ios|apple-dns.net|itunes.apple.com|communities.apple.com' /var/log/named/query | tail -100
-	lines:= execCommandGetLines(n, "", "bash", "-c", " grep -vE '172.17.0.[235]#|192.168.15.(101|156)#|time-ios|apple-dns.net|itunes.apple.com|communities.apple.com' /var/log/named/query | tail -100")
+	lines := execCommandGetLines(n, "", "bash", "-c", "grep -vE '172.17.0.[235]#|192.168.15.(101|156)#|time-ios|apple-dns.net|itunes.apple.com|communities.apple.com' /var/log/named/query | tail -100")
 	// Cache lookups only per function call.
 	dnscache := make(map[string][]string)
-	for i:=range lines {
-		lines[i] = strings.Replace(lines[i],"queries: info: client ","",1)
-		lines[i] = strings.Replace(lines[i],"view all: query:  ","",1)
-		h:=strings.Index(lines[i],"#")
-		ip:=lines[i][41:h]
+	for i := range lines {
+		lines[i] = strings.Replace(lines[i], "queries: info: client ", "", 1)
+		lines[i] = strings.Replace(lines[i], "view all: query:  ", "", 1)
+		h := strings.Index(lines[i], "#")
+		ip := lines[i][41:h]
 		hn := ""
 		nams, ok := dnscache[ip]
 		if !ok {
 			var err error
-			nams,err=net.LookupAddr(ip)
+			nams, err = net.LookupAddr(ip)
 			if err != nil {
-				log.Print("err looking up ",ip)
+				log.Print("err looking up ", ip)
 			}
 			dnscache[ip] = nams
 		}
-		if len(nams)>0 {
-			hn= strings.Join(nams,",")
+		if len(nams) > 0 {
+			hn = strings.Join(nams, ",")
 			// Remove my domain name.
 			hn = strings.ReplaceAll(hn, ".powerpuff", "")
 			// Remove the trailing dot.
 			hn = strings.TrimRight(hn, ".")
 		}
-		lines[i] = lines[i][0:25] +fmt.Sprintf("%20s  ", hn) + lines[i][25+16:]
+		lines[i] = `<span class="date">` + lines[i][0:25] + `</span>` +
+			fmt.Sprintf(`<span class="hostname">%20s</span>  `, hn) + lines[i][25+16:]
 	}
 	return lines
 }
