@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -52,24 +54,24 @@ func main() {
 	r := http.NewServeMux()
 	r.HandleFunc("/login", login)
 	r.HandleFunc("/logout", logout)
-	r.HandleFunc("/etv", doCheck(etv))        // enable TV
+	r.HandleFunc("/etv", authnCheck(etv))     // enable TV
 	r.HandleFunc("/statusTV", acao(statusTV)) // status TV
-	r.HandleFunc("/blockYT", doCheck(lockNamedFile(blockYT)))
-	r.HandleFunc("/enableYT", doCheck(lockNamedFile(enableYT)))
+	r.HandleFunc("/blockYT", authnCheck(lockNamedFile(blockYT)))
+	r.HandleFunc("/enableYT", authnCheck(lockNamedFile(enableYT)))
 	r.HandleFunc("/statusYT", acao(statusYT))
-	r.HandleFunc("/blockLilly", doCheck(lockNamedFile(blockLilly)))
-	r.HandleFunc("/enableLilly", doCheck(lockNamedFile(enableLilly)))
+	r.HandleFunc("/blockLilly", authnCheck(lockNamedFile(blockLilly)))
+	r.HandleFunc("/enableLilly", authnCheck(lockNamedFile(enableLilly)))
 	r.HandleFunc("/statusLilly", acao(statusLilly))
-	r.HandleFunc("/blockFB", doCheck(lockNamedFile(blockFB)))
-	r.HandleFunc("/enableFB", doCheck(lockNamedFile(enableFB)))
+	r.HandleFunc("/blockFB", authnCheck(lockNamedFile(blockFB)))
+	r.HandleFunc("/enableFB", authnCheck(lockNamedFile(enableFB)))
 	r.HandleFunc("/statusFB", acao(statusFB))
-	r.HandleFunc("/blockBeacons", doCheck(lockNamedFile(blockBeacons)))
-	r.HandleFunc("/enableBeacons", doCheck(lockNamedFile(enableBeacons)))
+	r.HandleFunc("/blockBeacons", authnCheck(lockNamedFile(blockBeacons)))
+	r.HandleFunc("/enableBeacons", authnCheck(lockNamedFile(enableBeacons)))
 	r.HandleFunc("/statusBeacons", acao(statusBeacons))
-	r.HandleFunc("/blockPorn", doCheck(lockNamedFile(blockPorn)))
-	r.HandleFunc("/enablePorn", doCheck(lockNamedFile(enablePorn)))
+	r.HandleFunc("/blockPorn", authnCheck(lockNamedFile(blockPorn)))
+	r.HandleFunc("/enablePorn", authnCheck(lockNamedFile(enablePorn)))
 	r.HandleFunc("/statusPorn", acao(statusPorn))
-	r.HandleFunc("/download", doCheck(download))
+	r.HandleFunc("/download", authnCheck(download))
 	r.HandleFunc("/recent", acao(recent))
 	r.Handle("/metrics", promhttp.Handler())
 	fs, err := fs.Sub(embededHTML, ".")
@@ -99,6 +101,30 @@ func main() {
 		}()
 	}
 
+	go func() {
+		caCert, err := ioutil.ReadFile("cert.pem")
+		if err != nil {
+			log.Fatal(err)
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+
+		// Create the TLS Config with the CA pool and enable Client certificate validation
+		tlsConfig := &tls.Config{
+			ClientCAs: caCertPool,
+			//			ClientAuth: tls.RequireAndVerifyClientCert,
+			ClientAuth: tls.VerifyClientCertIfGiven,
+		}
+
+		// Create a Server instance to listen on port 8443 with the TLS config
+		server := &http.Server{
+			Addr:      ":9621",
+			TLSConfig: tlsConfig,
+			Handler:   NoDateForSystemDHandler(os.Stdout, r),
+		}
+
+		log.Fatal(server.ListenAndServeTLS("cert.pem", "key.pem"))
+	}()
 	log.Fatal(http.ListenAndServe(":9620",
 		NoDateForSystemDHandler(os.Stdout, r)))
 }
@@ -256,7 +282,7 @@ func getSecureSessionCookieValue(r *http.Request) (string, error) {
 	return value, nil
 }
 
-func doCheck(f http.HandlerFunc) http.HandlerFunc {
+func authnCheck(f http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, http.StatusText(http.StatusMethodNotAllowed),
@@ -264,6 +290,13 @@ func doCheck(f http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		acao(emptyHandlerFunc())(w, r)
+		// If a cert auth (mtls) was used, then no session cookie required.
+		if r.TLS != nil && len(r.TLS.PeerCertificates) != 0 {
+			// I feel like I should log an auth name here.
+			// Cert CN or something?
+			f(w, r)
+			return
+		}
 		_, err := getSecureSessionCookieValue(r)
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusForbidden),
