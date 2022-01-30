@@ -142,26 +142,25 @@
 
 <body>
     <div id="loginform">
-        <form method="POST" action="http://delays.powerpuff:9620/login">
+        <form method="POST" action="http://delays.powerpuff/login">
             <input type="text" placeholder="username" name="username" />
             <br />
             <input type="password" placeholder="password" name="password" />
             <br />
-            <input type="hidden" name="redirect" value="http://delays.powerpuff:9620/" />
-            <button>login</button>
+            <input type="hidden" name="redirect" value="http://delays.powerpuff/" />
+            <button type="submit">login</button>
         </form>
     </div>
     <div id="logoutform">
         <div id="username"></div>
         <button id="logout"><a
-                href="http://delays.powerpuff:9620/logout?redirect=http://delays.powerpuff/#loggedout">logout</a>
+                href="http://delays.powerpuff/logout?redirect=http://delays.powerpuff/#loggedout">logout</a>
             </botton>
     </div>
     <h1>links</h1>
     <ul>
         <li><a href="http://drawingroom.powerpuff:8080">drawingroom kodi</a>
         <li><a href="/smokeping">smokeping</a>
-        <li><a href="http://delays.powerpuff:3000/">ntopng</a>
         <li><a href="http://delays.powerpuff:3141/admin/">pihole</a>
         <li><a href="http://👻.powerpuff">http://👻.powerpuff</a>
         <li><a href="http://delays.powerpuff:19999/">netdata</a>
@@ -170,6 +169,7 @@
         <li><a href="https://nc.xmtp.net/">nextcloud</a> has been disabled
         <li><a href="http://delays.powerpuff:14002">storj</a>
         <li><a href="http://delays.powerpuff:9090">prometheus</a>
+        <li><a href="http://delays.powerpuff:16686/search">jaeger</a>
         <li><a href="http://delays.powerpuff:3000">grafana</a>
         <li><a href="http://delays.powerpuff:8086/">influxdb</a>
         <li><a href="https://cisco.webex.com/meet/jawren">jay's webex</a></li>
@@ -177,6 +177,14 @@
             <a href="http://delays.powerpuff/5 Min of Mostly Lilly-540p.mp4">(540)</a>
         </li>
     </ul>
+    <div id="sendToTV"> </div>
+    <div>
+        <form action="javascript:void(0);">
+            <label>send to TV</label>
+            <input id="sendToTVText" placeholder="url" type="textbox">
+            <button type="submit" id="sendToTVButton">send</button>
+        </form>
+    </div>
     <h1> server filter controls</h1>
     <div id="response"> </div>
     <ul id="server_control">
@@ -233,9 +241,11 @@
         <li>
             <div id="downloadToTV"> </div>
             <div>
-                <label>download to kodi TV</label>
-                <input id="downloadToTVText" placeholder="url" type="textbox">
-                <button id="downloadToTVButton">download</button>
+                <form action="javascript:void(0);">
+                    <label>download to kodi TV</label>
+                    <input id="downloadToTVText" placeholder="url" type="textbox">
+                    <button type="submit" id="downloadToTVButton">download</button>
+                </form>
             </div>
         </li>
     </ul>

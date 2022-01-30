@@ -71,6 +71,7 @@ func main() {
 	r.HandleFunc("/enablePorn", authnCheck(lockNamedFile(enablePorn)))
 	r.HandleFunc("/statusPorn", acao(statusPorn))
 	r.HandleFunc("/download", authnCheck(download))
+	r.HandleFunc("/play", authnCheck(play))
 	r.HandleFunc("/recent", acao(recent))
 	r.Handle("/metrics", promhttp.Handler())
 	fs, err := fs.Sub(embededHTML, ".")
@@ -347,7 +348,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Println(err)
 		}
-		http.Error(w, "could not run iptables for TV", http.StatusForbidden)
+		http.Error(w, "authentication failed", http.StatusForbidden)
 		return
 	}
 	i, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
@@ -368,6 +369,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 	}
 	http.SetCookie(w, c)
+	log.Print(username, "successfully authenticated")
 	http.Redirect(w, r, r.Form.Get("redirect"), http.StatusTemporaryRedirect)
 }
 
@@ -683,6 +685,38 @@ func writeStatus(w io.Writer, status string) {
 	if err != nil {
 		log.Print(err)
 	}
+}
+
+func play(w http.ResponseWriter, r *http.Request) {
+	req := struct {
+		URL string
+	}{}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		log.Print(err)
+		http.Error(w, http.StatusText(http.StatusBadRequest),
+			http.StatusBadRequest)
+		return
+	}
+	if req.URL == "" {
+		log.Print("play got empty url")
+		http.Error(w, http.StatusText(http.StatusBadRequest),
+			http.StatusBadRequest)
+		return
+	}
+	if !strings.HasPrefix(req.URL, "http") {
+		req.URL = "https://" + req.URL
+	}
+	// TODO: use github.com/mjanser/lgtv
+	cmd := exec.CommandContext(r.Context(), "/home/jrwren/lgtv-venv/bin/lgtv", "mytv", "openBrowserAt", req.URL)
+	cmd.Env = append(os.Environ(), "HOME=/home/jrwren")
+	log.Printf("running %v", cmd)
+	if stdoutStderr, err := cmd.CombinedOutput(); err != nil {
+		writeStatus(w, err.Error()+" "+string(stdoutStderr))
+		log.Print("error sending to TV ", req.URL, err, string(stdoutStderr))
+		return
+	}
+	writeStatus(w, req.URL+" sent to TV")
 }
 
 func download(w http.ResponseWriter, r *http.Request) {

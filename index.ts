@@ -18,8 +18,10 @@ const statusBeacons = document.getElementById("statusBeacons")
 const switchPorn = document.getElementById("checkboxPorn")
 const statusPorn = document.getElementById("statusPorn")
 
-const downloadToTVText = document.getElementById("downloadToTVText")
+const downloadToTVText = <HTMLInputElement>document.getElementById("downloadToTVText")
 const downloadToTVButton = document.getElementById("downloadToTVButton")
+const sendToTVText = <HTMLInputElement>document.getElementById("sendToTVText")
+const sendToTVButton = document.getElementById("sendToTVButton")
 
 const resH = document.getElementById("response")
 const recenttv = document.getElementById("recenttv")
@@ -117,9 +119,15 @@ function updateStatus(endpoint, msgelement, msg, checkbox) {
     }).catch(reason => { console.log(reason) })
 }
 
+sendToTVButton.onclick = function () {
+    if (sendToTVText.value) {
+        hit("play", { "url": sendToTVText.value })
+    }
+}
+
 downloadToTVButton.onclick = function () {
-    if (downloadToTVText.textContent) {
-        hit("download", { "target": "tv", "url": downloadToTVText.textContent })
+    if (downloadToTVText.value) {
+        hit("download", { "target": "tv", "url": downloadToTVText.value })
     }
 }
 
