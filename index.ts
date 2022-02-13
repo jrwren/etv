@@ -30,7 +30,7 @@ const recentdns = document.getElementById("recentdns")
 
 //make etv.onclick like below
 etv.onclick = function () {
-    hit("etv")
+    hit("/etv")
 }
 
 switchYT.onclick = () => dependOnCheck(switchYT, "YT")
@@ -43,13 +43,13 @@ function dependOnCheck(inputElement, identifier) {
     // The logic here looks backwards because this executes AFTER
     // the state change.
     if (inputElement.checked) {
-        hit("enable" + identifier)
+        hit("/enable" + identifier)
         return
     }
-    hit("block" + identifier)
+    hit("/block" + identifier)
 }
 
-const server = "http://delays.powerpuff:9620/"
+const server = document.location.origin || "http://delays.powerpuff:9620"
 
 function hit(path, body = undefined) {
     const postbody = body ?? { "nope": "nothing" }
@@ -73,27 +73,27 @@ function hit(path, body = undefined) {
 }
 
 function updateYTStatus() {
-    updateStatus("statusYT", statusYT, "Youtube", switchYT)
+    updateStatus("/statusYT", statusYT, "Youtube", switchYT)
 }
 
 function updateFBStatus() {
-    updateStatus("statusFB", statusFB, "Facebook", switchFB)
+    updateStatus("/statusFB", statusFB, "Facebook", switchFB)
 }
 
 function updateLillyStatus() {
-    updateStatus("statusLilly", statusLilly, "Lilly", switchLilly)
+    updateStatus("/statusLilly", statusLilly, "Lilly", switchLilly)
 }
 
 function updateBeaconStatus() {
-    updateStatus("statusBeacons", statusBeacons, "Beacon", switchBeacons)
+    updateStatus("/statusBeacons", statusBeacons, "Beacon", switchBeacons)
 }
 
 function updatePornStatus() {
-    updateStatus("statusPorn", statusPorn, "Porn", switchPorn)
+    updateStatus("/statusPorn", statusPorn, "Porn", switchPorn)
 }
 
 function updateTVStatus() {
-    updateStatus("statusTV", statusTV, "TV", etv)
+    updateStatus("/statusTV", statusTV, "TV", etv)
 }
 
 function updateStatus(endpoint, msgelement, msg, checkbox) {
@@ -121,13 +121,13 @@ function updateStatus(endpoint, msgelement, msg, checkbox) {
 
 sendToTVButton.onclick = function () {
     if (sendToTVText.value) {
-        hit("play", { "url": sendToTVText.value })
+        hit("/play", { "url": sendToTVText.value })
     }
 }
 
 downloadToTVButton.onclick = function () {
     if (downloadToTVText.value) {
-        hit("download", { "target": "tv", "url": downloadToTVText.value })
+        hit("/download", { "target": "tv", "url": downloadToTVText.value })
     }
 }
 
@@ -145,7 +145,7 @@ let updateList = function (list, element) {
     element.appendChild(ol)
 }
 let getRecentTVAndMovies = function () {
-    fetch(server + 'recent').then((resp) => {
+    fetch(server + '/recent').then((resp) => {
         if (!resp.ok) {
             console.log("OH NO! ", resp)
         }

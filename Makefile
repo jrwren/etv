@@ -1,7 +1,7 @@
 build: index.js ~/go/bin/etv
 
 
-~/go/bin/etv: main.go
+~/go/bin/etv: main.go index.js
 	go install .
 index.js: index.ts
 	npx tsc index.ts

@@ -154,7 +154,7 @@ var (
 	manageTV bool
 
 	s *securecookie.SecureCookie
-	//go:embed *.html
+	//go:embed *.html *.js
 	embededHTML embed.FS
 )
 
@@ -370,6 +370,10 @@ func login(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, c)
 	log.Print(username, "successfully authenticated")
+	redir := r.Form.Get("redirect")
+	if redir == "" {
+		redir = r.Host
+	}
 	http.Redirect(w, r, r.Form.Get("redirect"), http.StatusTemporaryRedirect)
 }
 
