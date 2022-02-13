@@ -371,10 +371,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, c)
 	log.Print(username, "successfully authenticated")
 	redir := r.Form.Get("redirect")
-	if redir == "" {
-		redir = r.Host
-	}
-	http.Redirect(w, r, r.Form.Get("redirect"), http.StatusTemporaryRedirect)
+	http.Redirect(w, r, redir, http.StatusTemporaryRedirect)
 }
 
 func statusTV(w http.ResponseWriter, r *http.Request) {
