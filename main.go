@@ -37,7 +37,7 @@ const (
 	sessionCookieName = "session"
 	tvHostname        = "lgtv.powerpuff"
 	// youtubeDLPath can be "youtube-dl" if it is in $PATH.
-	youtubeDLPath = "/home/jrwren/bin/youtube-dl"
+	//youtubeDLPath = "/home/jrwren/bin/youtube-dl"
 	youtubeDLPath = "/home/jrwren/bin/yt-dlp"
 )
 
