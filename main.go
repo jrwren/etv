@@ -38,6 +38,7 @@ const (
 	tvHostname        = "lgtv.powerpuff"
 	// youtubeDLPath can be "youtube-dl" if it is in $PATH.
 	youtubeDLPath = "/home/jrwren/bin/youtube-dl"
+	youtubeDLPath = "/home/jrwren/bin/yt-dlp"
 )
 
 func main() {
@@ -48,7 +49,7 @@ func main() {
 	// var blockKey = []byte("")
 	flag.BoolVar(&manageTV, "managetv", false, "manage the TV")
 	flag.Parse()
-	go pinger()
+    //	go pinger()
 	s = securecookie.New(hashKey, nil)
 	r := http.NewServeMux()
 	r.HandleFunc("/login", login)
