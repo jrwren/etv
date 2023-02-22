@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#4285f4" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    <style type="text/css">
+        @charset "UTF-8";
+
+        body {
+            font-family: Ubuntu, Arial, "libra sans", sans-serif;
+            /*font-family: 'Palatino';*/
+            text-rendering: optimizeLegibility;
+            margin: auto;
+            max-width: 70em;
+            padding: 2em;
+        }
+
+        .details,
+        .show,
+        .hide:target {
+            display: none;
+        }
+
+        .hide:target+.show,
+        .hide:target~.details {
+            display: block;
+        }
+
+        #error {
+            background-color: pink;
+        }
+
+        #action {
+            background-color: lightblue;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: black;
+                color: white;
+            }
+
+            a {
+                color: rgb(var(--color-link));
+            }
+
+            a:hover {
+                filter: brightness(0.7);
+            }
+
+            :root {
+                --color-link: 128, 128, 255;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <h1>wren house admin page</h1>
+    {{ if .Error }}<div id="error">{{.Error}}</div>{{ end }}
+    {{ if .Action }}<div id="action">{{.Action}}</div>{{ end }}
+    <div>
+        <a id="hide1" href="#hide1" class="hide">
+            <h2>+ request details</h2>
+        </a>
+        <a id="show1" href="#show1" class="show">
+            <h2>&ndash; request details</h2>
+        </a>
+        <div class="details">
+            <p>Your IP: {{ .YourIP }}</p>
+            <p>Query params: {{ .QueryParams }}</p>
+            <p>RemoteAddr: {{ .RemoteAddr }}</p>
+            <p>Headers:
+            <table>
+                {{ range $k, $v := .Headers }}
+                <tr>
+                    <td>{{$k}}</td>
+                    {{range $v}}
+                    <td>{{ . }}</td>
+                    {{end}}
+                </tr>
+                {{ end }}
+            </table>
+            </p>
+        </div>
+    </div>
+    <div>
+        <h2>SSH access status</h2>
+        {{ if .IPV6 }}
+        <p>You are connected via IPV6, which should be WIDE OPEN!</p>
+        {{ end }}
+        {{ if .SSHAcceptFound }}
+        <p>{{ .YourIP }} found in allow list.<a href="?removeyouripfromaccept">remove</a>
+        </p>{{ else }}
+        <p>{{ .YourIP }} NOT found in allow list.<a href="?addyouriptoaccept">add it</a>
+        </p>
+        {{ end }}
+        {{/*-- end --*/}}
+        <form>
+
+        </form>
+    </div>
+    <div>
+        <h2>iptables acceptlist</h2>
+        <pre><code id="acceptlist" class="log">{{.IPTAcceptlist}}</code></pre>
+    </div>
+    <div>
+        <h2>recent his</h2>
+        {{range .His}}
+        <code>{{.}}</code>
+        {{end}}
+    </div>
+    <div>
+        <h2>recent cls</h2>
+        {{range .Cls}}
+        <code>{{.}}</code>
+        {{end}}
+    </div>
+</body>
+
+</html>

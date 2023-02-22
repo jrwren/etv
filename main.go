@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -30,6 +31,7 @@ import (
 	"github.com/gorilla/securecookie"
 	sysdwatchdog "github.com/iguanesolutions/go-systemd/v5/notify/watchdog"
 	"github.com/jrwren/sadv"
+	"github.com/pires/go-proxyproto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -48,13 +50,16 @@ func main() {
 	// if block key is nil, then no encryption.
 	// var blockKey = []byte("")
 	flag.BoolVar(&manageTV, "managetv", false, "manage the TV")
+	pp := flag.Bool("proxy", true, "listen using PROXY protocol")
 	flag.Parse()
-    //	go pinger()
+	//	go pinger()
 	s = securecookie.New(hashKey, nil)
 	r := http.NewServeMux()
 	r.HandleFunc("/login", login)
 	r.HandleFunc("/logout", logout)
-	r.HandleFunc("/etv", authnCheck(etv))     // enable TV
+	r.HandleFunc("/etv", authnCheck(etv)) // enable TV
+	r.HandleFunc("/admin", authnCheck(admin))
+	r.HandleFunc("/cl", cl)
 	r.HandleFunc("/statusTV", acao(statusTV)) // status TV
 	r.HandleFunc("/blockYT", authnCheck(lockNamedFile(blockYT)))
 	r.HandleFunc("/enableYT", authnCheck(lockNamedFile(enableYT)))
@@ -121,13 +126,30 @@ func main() {
 		server := &http.Server{
 			Addr:      ":9621",
 			TLSConfig: tlsConfig,
-			Handler:   NoDateForSystemDHandler(os.Stdout, r),
+			Handler:   compress(NoDateForSystemDHandler(os.Stdout, r)),
 		}
-
 		log.Fatal(server.ListenAndServeTLS("cert.pem", "key.pem"))
 	}()
-	log.Fatal(http.ListenAndServe(":9620",
-		NoDateForSystemDHandler(os.Stdout, r)))
+	switch *pp {
+	case false:
+		log.Fatal(http.ListenAndServe(":9620",
+			compress(NoDateForSystemDHandler(os.Stdout, r))))
+	case true:
+		server := http.Server{
+			Addr:    ":9620",
+			Handler: compress(NoDateForSystemDHandler(os.Stdout, r)),
+		}
+		ln, err := net.Listen("tcp", server.Addr)
+		if err != nil {
+			log.Fatal(err)
+		}
+		proxyListener := &proxyproto.Listener{
+			Listener:          ln,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+		defer proxyListener.Close()
+		server.Serve(proxyListener)
+	}
 }
 
 func healthOK() bool {
@@ -285,7 +307,7 @@ func getSecureSessionCookieValue(r *http.Request) (string, error) {
 
 func authnCheck(f http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
+		if r.Method != http.MethodPost && r.Method != http.MethodGet {
 			http.Error(w, http.StatusText(http.StatusMethodNotAllowed),
 				http.StatusMethodNotAllowed)
 			return
@@ -309,6 +331,18 @@ func authnCheck(f http.HandlerFunc) http.HandlerFunc {
 		// it is secure.
 		f(w, r)
 	})
+}
+
+var cls []string
+
+func cl(w http.ResponseWriter, r *http.Request) {
+	io.WriteString(w, "OK")
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Println(err)
+	}
+	cls = append(cls, string(b))
+	r.Body.Close()
 }
 
 func logout(w http.ResponseWriter, r *http.Request) {
@@ -376,7 +410,8 @@ func login(w http.ResponseWriter, r *http.Request) {
 }
 
 func statusTV(w http.ResponseWriter, r *http.Request) {
-	out, err := exec.Command("iptables", "-L", "INPUT").CombinedOutput()
+	out, err := exec.CommandContext(r.Context(),
+		"iptables", "-L", "INPUT").CombinedOutput()
 	if err != nil {
 		log.Print(err, string(out))
 		http.Error(w, "could not run iptables for TV", http.StatusServiceUnavailable)
@@ -545,7 +580,8 @@ func commentFileBetween(filename, start, stop string, uncomment bool) error {
 }
 
 func statusLilly(w http.ResponseWriter, r *http.Request) {
-	out, err := exec.Command("iptables", "-L", "INPUT").CombinedOutput()
+	out, err := exec.CommandContext(r.Context(),
+		"iptables", "-L", "INPUT").CombinedOutput()
 	if err != nil {
 		log.Print(err, string(out))
 		http.Error(w, "could not run iptables for TV", http.StatusServiceUnavailable)
@@ -757,28 +793,28 @@ func download(w http.ResponseWriter, r *http.Request) {
 func recent(w http.ResponseWriter, r *http.Request) {
 	// TODO: list and stat the files instead of fork/exec
 	respj := make(map[string][]string)
-	respj["tv"] = tailLatestFiles("/d/tv", 30)
-	respj["movies"] = tailLatestFiles("/d/movies", 20)
-	respj["dns"] = tailquerylog(100)
+	respj["tv"] = tailLatestFiles(r.Context(), "/d/tv", 30)
+	respj["movies"] = tailLatestFiles(r.Context(), "/d/movies", 20)
+	respj["dns"] = tailquerylog(r.Context(), 100)
 	err := json.NewEncoder(w).Encode(respj)
 	if err != nil {
 		log.Print(err)
 	}
 }
 
-func tailLatestFiles(path string, n int) []string {
-	return execCommandGetLines(n, path, "bash", "-c",
+func tailLatestFiles(ctx context.Context, path string, n int) []string {
+	return execCommandGetLines(ctx, n, path, "bash", "-c",
 		`find . -maxdepth 1 \( -type d -o -name '*.mp4' -o -name '*.mkv' \)  -a ! -name '.*' -printf "%TF %p\n" | sort`)
 }
 
-func execCommandGetLines(n int, dir, name string, arg ...string) []string {
-	cmd := exec.Command(name, arg...)
+func execCommandGetLines(ctx context.Context, n int, dir, name string, arg ...string) []string {
+	cmd := exec.CommandContext(ctx, name, arg...)
 	if dir != "" {
 		cmd.Dir = dir
 	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil
+		return []string{string(out), err.Error()}
 	}
 	lines := strings.Split(string(out), "\n")
 	l := len(lines)
@@ -792,9 +828,9 @@ func execCommandGetLines(n int, dir, name string, arg ...string) []string {
 	return lines[l-n : l]
 }
 
-func tailquerylog(n int) []string {
+func tailquerylog(ctx context.Context, n int) []string {
 	//grep -vE '172.17.0.[235]#|192.168.15.(101|156)#|time-ios|apple-dns.net|itunes.apple.com|communities.apple.com' /var/log/named/query | tail -100
-	lines := execCommandGetLines(n, "", "bash", "-c", "grep -vE '172.17.0.[235]#|192.168.15.(101|156)#|time-ios|apple-dns.net|itunes.apple.com|communities.apple.com' /var/log/named/query | tail -100")
+	lines := execCommandGetLines(ctx, n, "", "bash", "-c", "grep -vE '172.17.0.[235]#|192.168.15.(101|156)#|time-ios|apple-dns.net|itunes.apple.com|communities.apple.com' /var/log/named/query | tail -100")
 	// Cache lookups only per function call.
 	dnscache := make(map[string][]string)
 	for i := range lines {

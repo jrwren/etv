@@ -13,3 +13,6 @@ cert.pem:
   -out cert.pem \
   -keyout key.pem \
   -subj "/C=US/ST=Michigan/L=Ann Arbor/O=XMTP/OU=Your Unit/CN=localhost"
+
+watch:
+	watch.sh
