@@ -51,8 +51,11 @@ func main() {
 	// var blockKey = []byte("")
 	flag.BoolVar(&manageTV, "managetv", false, "manage the TV")
 	pp := flag.Bool("proxy", true, "listen using PROXY protocol")
+	runpinger := flag.Bool("runpinger", false, "run background pinger")
 	flag.Parse()
-	//	go pinger()
+	if *runpinger {
+		go pinger()
+	}
 	s = securecookie.New(hashKey, nil)
 	r := http.NewServeMux()
 	r.HandleFunc("/login", login)

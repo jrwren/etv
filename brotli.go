@@ -60,9 +60,3 @@ func compress(fn http.Handler) http.HandlerFunc {
 		fn.ServeHTTP(brw, r)
 	}
 }
-
-func handler(w http.ResponseWriter, r *http.Request) {
-
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte("This is a test."))
-}
