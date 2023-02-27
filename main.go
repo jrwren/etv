@@ -50,8 +50,9 @@ func main() {
 	// if block key is nil, then no encryption.
 	// var blockKey = []byte("")
 	flag.BoolVar(&manageTV, "managetv", false, "manage the TV")
-	pp := flag.Bool("proxy", true, "listen using PROXY protocol")
+	pp := flag.Bool("proxyprotocol", false, "listen using PROXY protocol")
 	runpinger := flag.Bool("runpinger", false, "run background pinger")
+	watchdog := flag.Bool("watchdog", false, "enable systemd watchdog")
 	flag.Parse()
 	if *runpinger {
 		go pinger()
@@ -89,27 +90,11 @@ func main() {
 	}
 	r.Handle("/", http.FileServer(http.FS(fs)))
 
-	watchdog, err := sysdwatchdog.New()
-	if err != nil {
-		log.Printf("failed to initialize systemd watchdog controller: %v\n", err)
+	if *watchdog {
+		enableWatchdog()
 	}
 
-	if watchdog != nil {
-		// Then start a watcher worker
-		go func() {
-			ticker := watchdog.NewTicker()
-			defer ticker.Stop()
-			for range ticker.C {
-				// Check if something wrong, if not send heartbeat
-				if healthOK() {
-					if err = watchdog.SendHeartbeat(); err != nil {
-						log.Printf("failed to send systemd watchdog heartbeat: %v\n", err)
-					}
-				}
-			}
-		}()
-	}
-
+	h := compress(NoDateForSystemDHandler(os.Stdout, r))
 	go func() {
 		caCert, err := ioutil.ReadFile("cert.pem")
 		if err != nil {
@@ -129,18 +114,17 @@ func main() {
 		server := &http.Server{
 			Addr:      ":9621",
 			TLSConfig: tlsConfig,
-			Handler:   compress(NoDateForSystemDHandler(os.Stdout, r)),
+			Handler:   h,
 		}
 		log.Fatal(server.ListenAndServeTLS("cert.pem", "key.pem"))
 	}()
 	switch *pp {
 	case false:
-		log.Fatal(http.ListenAndServe(":9620",
-			compress(NoDateForSystemDHandler(os.Stdout, r))))
+		log.Fatal(http.ListenAndServe(":9620", h))
 	case true:
 		server := http.Server{
 			Addr:    ":9620",
-			Handler: compress(NoDateForSystemDHandler(os.Stdout, r)),
+			Handler: h,
 		}
 		ln, err := net.Listen("tcp", server.Addr)
 		if err != nil {
@@ -152,6 +136,29 @@ func main() {
 		}
 		defer proxyListener.Close()
 		server.Serve(proxyListener)
+	}
+}
+
+func enableWatchdog() {
+	watchdog, err := sysdwatchdog.New()
+	if err != nil {
+		log.Printf("failed to initialize systemd watchdog controller: %v\n", err)
+	}
+
+	if watchdog != nil {
+		// Then start a watcher worker
+		go func() {
+			ticker := watchdog.NewTicker()
+			defer ticker.Stop()
+			for range ticker.C {
+				// Check if something wrong, if not send heartbeat
+				if healthOK() {
+					if err = watchdog.SendHeartbeat(); err != nil {
+						log.Printf("failed to send systemd watchdog heartbeat: %v\n", err)
+					}
+				}
+			}
+		}()
 	}
 }
 

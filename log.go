@@ -17,6 +17,7 @@ import (
 //   %v:%p %h %u \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i
 func NoDateForSystemDHandler(out io.Writer, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// TODO: add a nolog match parameter.
 		if r.RequestURI == "/metrics" {
 			h.ServeHTTP(w, r)
 			return
