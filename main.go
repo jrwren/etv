@@ -847,6 +847,9 @@ func tailquerylog(ctx context.Context, n int) []string {
 		lines[i] = strings.Replace(lines[i], "queries: info: client ", "", 1)
 		lines[i] = strings.Replace(lines[i], "view all: query:  ", "", 1)
 		h := strings.Index(lines[i], "#")
+		if len(lines[i]) < 41 {
+			continue
+		}
 		ip := lines[i][41:h]
 		hn := ""
 		nams, ok := dnscache[ip]
