@@ -7,7 +7,7 @@ k() {
 }
 go build -o app .
 ./app & PID=$!
-while inotifywait -q -e modify *.go
+while inotifywait -q -r -e modify *.go
 do kill "$PID"
     go build -o app .
     ./app &
