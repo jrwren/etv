@@ -18,6 +18,14 @@
             max-width: 70em;
             padding: 2em;
         }
+@supports (color-scheme: light dark)
+  and (background-color: Canvas)
+  and (color: CanvasText) {
+  :root {
+    --c-bg: Canvas;
+    --c-text: CanvasText;
+  }
+}
 
         @media (prefers-color-scheme: dark) {
             body {
@@ -160,6 +168,7 @@
     <h1>links</h1>
     <ul>
         <li><a href="https://jf.j.xmtp.net/web/">jellyfin ~ disabled</a>
+        <li><a href="http://delays.powerpuff:8888/notebooks/notes/one.ipynb">gophernotes</a>
         <li><a href="http://drawingroom.powerpuff:8080">drawingroom kodi</a>
         <li><a href="/smokeping">smokeping</a>
         <li><a href="http://delays.powerpuff:3141/admin/">pihole</a>
