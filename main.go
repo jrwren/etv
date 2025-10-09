@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"math"
 	"math/big"
@@ -96,7 +95,7 @@ func main() {
 
 	h := compress(NoDateForSystemDHandler(os.Stdout, r))
 	go func() {
-		caCert, err := ioutil.ReadFile("cert.pem")
+		caCert, err := os.ReadFile("cert.pem")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -548,7 +547,7 @@ func statusYT(w http.ResponseWriter, r *http.Request) {
 }
 
 func commentFileBetween(filename, start, stop string, uncomment bool) error {
-	b, err := ioutil.ReadFile(namedFile)
+	b, err := os.ReadFile(namedFile)
 	if err != nil {
 		return err
 	}
@@ -703,7 +702,7 @@ func statusFB(w http.ResponseWriter, r *http.Request) {
 }
 
 func statusX(w http.ResponseWriter, r *http.Request, key string) {
-	b, err := ioutil.ReadFile(namedFile)
+	b, err := os.ReadFile(namedFile)
 	if err != nil {
 		return
 	}
